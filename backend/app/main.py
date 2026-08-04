@@ -2,9 +2,11 @@ import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import candle_patterns, history, market_data, quant_forecast
 from app.assets import CONTEXT_TIMEFRAMES, TIMEFRAMES, assets_for_risk, find_asset
@@ -233,3 +235,12 @@ def get_history(limit: int = 50):
 def clear_history():
     history.clear_all()
     return {"cleared": True}
+
+
+# Em produção, serve o build estático do frontend a partir do mesmo processo/porta da API —
+# mesma origem, sem CORS pra configurar. Rotas de API acima são checadas primeiro; qualquer
+# caminho que não bater com elas cai aqui. Em dev local não existe frontend/dist (usa-se
+# `npm run dev` à parte), então isso simplesmente não monta nada.
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")

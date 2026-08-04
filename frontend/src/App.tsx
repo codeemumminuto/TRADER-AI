@@ -87,30 +87,39 @@ function App() {
   // conservadora pra forex (Twelve Data grátis compartilha um limite fixo de 8 req/min entre
   // todos os ativos forex monitorados — repetir rápido nesse provedor só empilha requisições
   // na fila e trava tudo). Cripto (Binance) não tem esse limite, então pode ser bem mais ágil.
-  function defaultPeriodicityMs(timeframe: string, asset: string): number {
-    const provider = assetProviderRef.current[asset] ?? 'binance'
-    if (provider === 'twelvedata') {
-      switch (timeframe) {
-        case '1min':
-          return 90_000
-        case '5min':
-          return 180_000
-        case '15min':
-          return 300_000
-        default:
-          return 180_000
-      }
-    }
+  function timeframeMs(timeframe: string): number {
     switch (timeframe) {
       case '1min':
-        return 20_000
+        return 60_000
       case '5min':
-        return 60_000
+        return 300_000
       case '15min':
-        return 180_000
+        return 900_000
       default:
-        return 60_000
+        return 300_000
     }
+  }
+
+  function defaultPeriodicityMs(timeframe: string, asset: string): number {
+    // Nunca reanalisa antes do fim da janela da previsão atual (predicted_at + timeframe) —
+    // reconferir mais cedo não faz sentido, a previsão em curso ainda nem "venceu".
+    const base = timeframeMs(timeframe)
+    const provider = assetProviderRef.current[asset] ?? 'binance'
+    if (provider === 'twelvedata') {
+      // Forex: Twelve Data grátis compartilha um limite fixo de 8 req/min entre todos os
+      // ativos monitorados — espaça ainda mais, por cima do mínimo do timeframe.
+      switch (timeframe) {
+        case '1min':
+          return Math.max(base, 90_000)
+        case '5min':
+          return Math.max(base, 180_000)
+        case '15min':
+          return Math.max(base, 300_000)
+        default:
+          return Math.max(base, 180_000)
+      }
+    }
+    return base
   }
 
   useEffect(() => {
