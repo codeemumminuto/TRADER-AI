@@ -6,5 +6,10 @@ numpy==2.2.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
-torch==2.13.0
+
+# CPU-only build — o app roda inferência só em CPU (quant_forecast.py força device_map="cpu"),
+# então a wheel padrão do PyPI (que inclui a stack CUDA inteira, +5GB de nvidia-*/triton) é
+# só desperdício de disco/banda. Essa linha faz o pip pegar a build CPU de ~200MB em vez disso.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.13.0+cpu
 chronos-forecasting==2.3.1
