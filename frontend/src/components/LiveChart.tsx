@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CandlestickSeries, createChart, type IChartApi, type ISeriesApi, type UTCTimestamp } from 'lightweight-charts'
 import { fetchCandles, type Direction } from '../api'
 
-const POLL_MS = 4000
+const POLL_MS = 1500
 const CANDLE_LIMIT = 60
 const COMPACT_CANDLE_LIMIT = 4
 const COMPACT_HEIGHT = 220
