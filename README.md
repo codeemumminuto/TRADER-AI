@@ -1,6 +1,11 @@
-# Trader AI
+# Trader AI (BinAI)
 
-Assistente de análise técnica: indicadores reais (RSI, MACD, EMAs, Bollinger, ADX) calculados a partir de candles de mercado real (cripto via Binance, forex via Twelve Data), combinados com uma IA que faz leitura independente de padrões de candle/price action, e um modelo quantitativo de série temporal (Chronos). As três leituras (Indicadores / IA / Quant) e o consenso final aparecem separados na tela, com score de confiança, countdown de entrada e painel de confluências.
+Assistente de análise técnica: indicadores reais (RSI, MACD, EMAs, Bollinger, ADX, Suporte/Resistência)
+calculados a partir de candles de mercado real (cripto via Binance, forex via Twelve Data), combinados
+com uma IA que reconhece padrões de candlestick/price action e um modelo quantitativo de série temporal
+(Chronos) que projeta um preço-alvo. As três leituras (Indicadores / IA / Estatística) e o consenso final
+aparecem separadas na tela, com score de confiança, preço previsto e até quando essa previsão vale — sem
+simular resultado (WIN/LOSS), é um log de previsões, não uma corretora simulada.
 
 ## Rodando o backend
 
@@ -27,13 +32,15 @@ Abrir http://localhost:5174
 
 - `TWELVE_DATA_API_KEY`: gratuita em https://twelvedata.com/pricing — necessária apenas para os ativos forex (EUR/USD, GBP/USD, etc). Sem ela, o app funciona normalmente com os ativos cripto (Binance, sem key).
 
-## Exportar histórico pra treinar/analisar depois
+## Produção
 
-`GET /history/export` devolve todo o histórico de análises em JSONL (um objeto JSON por linha — formato padrão de dataset pra fine-tuning), com indicadores, leitura da IA, previsão quantitativa e o resultado real (WIN/LOSS) de cada uma.
+Live em https://trader-ai.sint.dev.br — deploy automático via GitHub Actions
+(`.github/workflows/deploy.yml`) a cada push na `main`. Em produção, o próprio FastAPI serve o
+build estático do frontend (mesma origem, sem CORS pra configurar) — ver o mount condicional de
+`frontend/dist` no fim de `backend/app/main.py`.
 
 ## Notas importantes
 
 - Não há suporte a ativos "OTC" (fins de semana) — esses são séries sintéticas proprietárias de cada corretora binária, sem fonte pública de dados. O app usa apenas mercado real, aberto.
-- Os indicadores e o modelo quantitativo (Chronos) são cálculo/previsão real, não a IA "inventando" um número — a IA dá uma leitura independente própria, mostrada separada.
-- Cada análise é comparada por similaridade de padrão com todo o histórico real já resolvido (indicadores, confluência, alinhamento entre timeframes) e a confiança final é ajustada conforme a taxa de acerto de cenários parecidos — um reforço estatístico real, não um número inventado.
-- O botão "Treinar IA" roda a mesma análise contra candles históricos já resolvidos (sem esperar o tempo real acontecer), gerando rapidamente uma base grande de dados reais que alimenta esse reforço.
+- Os indicadores e o modelo quantitativo (Chronos) são cálculo/previsão real, não a IA "inventando" um número — a IA dá uma leitura independente própria (padrões de candlestick), mostrada separada.
+- `torch` é instalado a partir do índice CPU-only do PyTorch (ver `requirements.txt`) — a inferência do modelo estatístico roda inteira em CPU, então a wheel padrão com a stack CUDA completa seria só desperdício de espaço.
