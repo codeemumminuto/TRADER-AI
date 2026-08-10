@@ -257,7 +257,9 @@
 }
 
 .field input[type='number'],
-.field input[type='text'] {
+.field input[type='text'],
+.field input[type='email'],
+.field input[type='password'] {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
@@ -268,7 +270,9 @@
 }
 
 .field input[type='number']:focus,
-.field input[type='text']:focus {
+.field input[type='text']:focus,
+.field input[type='email']:focus,
+.field input[type='password']:focus {
   outline: none;
   border-color: var(--green);
   box-shadow: 0 0 0 2px rgba(111, 220, 30, 0.2);
@@ -1615,6 +1619,42 @@
   font-size: 11px;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.ip-add-form {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ip-add-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(111, 220, 30, 0.25);
+  background-color: #12160f;
+  color: var(--silver);
+  font-size: 13px;
+}
+
+.ip-add-form input:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(111, 220, 30, 0.2);
+}
+
+.ip-add-button {
+  flex: none;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--green), var(--green-dark));
+  color: #0b1207;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 /* Ícone de info na tabela do histórico */

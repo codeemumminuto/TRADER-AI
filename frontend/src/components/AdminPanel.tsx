@@ -213,14 +213,14 @@ export default function AdminPanel({ onLogout }: Props) {
                 </ul>
               )}
 
-              <form className="min-confidence-field" style={{ marginTop: 12 }} onSubmit={handleAddIp}>
+              <form className="ip-add-form" onSubmit={handleAddIp}>
                 <input
                   type="text"
                   placeholder="Ex.: 200.150.10.5 ou 200.150.10.0/24"
                   value={newIp}
                   onChange={(e) => setNewIp(e.target.value)}
                 />
-                <button type="submit" className="analyze-button">
+                <button type="submit" className="ip-add-button">
                   Adicionar
                 </button>
               </form>
