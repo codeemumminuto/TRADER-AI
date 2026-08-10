@@ -3,7 +3,11 @@ const STORAGE_KEY = 'binai_sound_muted'
 
 let audioCtx: AudioContext | null = null
 let limiter: DynamicsCompressorNode | null = null
-let muted = localStorage.getItem(STORAGE_KEY) === 'true'
+// Sem preferência salva ainda: começa mudo. O áudio só é liberado quando o usuário clica pra
+// ativar (gesto real) — se começasse ativado, a primeira tentativa de tocar viria do loop de
+// monitoramento (assíncrono, sem gesto do usuário) e o navegador bloquearia o AudioContext.
+const stored = localStorage.getItem(STORAGE_KEY)
+let muted = stored === null ? true : stored === 'true'
 
 function getCtx(): { ctx: AudioContext; out: AudioNode } {
   if (!audioCtx) {
@@ -29,6 +33,13 @@ export function isSoundMuted(): boolean {
 export function setSoundMuted(value: boolean): void {
   muted = value
   localStorage.setItem(STORAGE_KEY, String(value))
+  if (!value) {
+    // Chamado direto do clique no botão de som — aproveita esse gesto do usuário pra criar/
+    // destravar o AudioContext, em vez de deixar a primeira tentativa acontecer depois, de forma
+    // assíncrona (loop de monitoramento), quando o navegador bloquearia.
+    const { ctx } = getCtx()
+    if (ctx.state === 'suspended') ctx.resume()
+  }
 }
 
 interface Note {

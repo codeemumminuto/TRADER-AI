@@ -1230,6 +1230,24 @@
   margin-top: 8px;
 }
 
+.login-help {
+  width: 100%;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 4px;
+}
+
+.login-help a {
+  color: var(--green);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.login-help a:hover {
+  text-decoration: underline;
+}
+
 .result-empate {
   background: rgba(148, 163, 184, 0.18);
   color: #cbd5e1;

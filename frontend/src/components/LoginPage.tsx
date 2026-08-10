@@ -54,6 +54,14 @@ export default function LoginPage({ onLoggedIn }: Props) {
           />
         </div>
 
+        <p className="login-help">
+          Ainda não tem um acesso? Solicite{' '}
+          <a href="https://wa.me/554891988246" target="_blank" rel="noreferrer">
+            aqui
+          </a>{' '}
+          pelo WhatsApp.
+        </p>
+
         {error && <div className="error-banner">{error}</div>}
 
         <button type="submit" className="analyze-button" disabled={loading}>
