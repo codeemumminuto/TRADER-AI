@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: trader
+      POSTGRES_DB: trader_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - trader_ai_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d trader_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://trader:trader@db:5432/trader_ai
+      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3011}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@trader-ai.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+    ports:
+      - "3011:3011"
+
+volumes:
+  trader_ai_db_data:

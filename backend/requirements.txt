@@ -6,6 +6,9 @@ numpy==2.2.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
 python-dotenv==1.0.1
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+bcrypt==4.2.1
 
 # CPU-only build — o app roda inferência só em CPU (quant_forecast.py força device_map="cpu"),
 # então a wheel padrão do PyPI (que inclui a stack CUDA inteira, +5GB de nvidia-*/triton) é

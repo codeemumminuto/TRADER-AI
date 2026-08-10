@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
 export type RiskProfile = 'calmo' | 'moderado' | 'volatil'
 export type Direction = 'CALL' | 'PUT'
 export type DirectionOrNeutral = 'CALL' | 'PUT' | 'NEUTRO'
+export type Role = 'admin' | 'user'
 
 export interface AssetInfo {
   symbol: string
@@ -34,9 +35,22 @@ export interface Candle {
   volume: number
 }
 
+async function handle<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? `Erro ${res.status}`)
+  }
+  return res.json()
+}
+
+// Todo request inclui cookies (sessão de login é um cookie httpOnly, não token no header).
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API_BASE}${path}`, { ...init, credentials: 'include' })
+}
+
 export async function fetchCandles(asset: string, timeframe: string, limit = 60): Promise<Candle[]> {
   const params = new URLSearchParams({ asset, timeframe, limit: String(limit) })
-  const data = await fetch(`${API_BASE}/candles?${params}`).then((r) => handle<{ candles: Candle[] }>(r))
+  const data = await apiFetch(`/candles?${params}`).then((r) => handle<{ candles: Candle[] }>(r))
   return data.candles
 }
 
@@ -74,25 +88,17 @@ export interface AnalyzeResponse {
   disclaimer: string
 }
 
-async function handle<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail ?? `Erro ${res.status}`)
-  }
-  return res.json()
-}
-
 export function fetchAssets(riskProfile?: RiskProfile): Promise<AssetInfo[]> {
   const qs = riskProfile ? `?risk_profile=${riskProfile}` : ''
-  return fetch(`${API_BASE}/assets${qs}`).then((r) => handle(r))
+  return apiFetch(`/assets${qs}`).then((r) => handle(r))
 }
 
 export function fetchTimeframes(): Promise<string[]> {
-  return fetch(`${API_BASE}/timeframes`).then((r) => handle(r))
+  return apiFetch('/timeframes').then((r) => handle(r))
 }
 
 export function analyze(asset: string, timeframe: string, riskProfile: RiskProfile): Promise<AnalyzeResponse> {
-  return fetch(`${API_BASE}/analyze`, {
+  return apiFetch('/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ asset, timeframe, risk_profile: riskProfile }),
@@ -165,9 +171,79 @@ export function historyRecordToResult(r: HistoryRecord): AnalyzeResponse {
 }
 
 export function fetchHistory(limit = 50): Promise<HistoryResponse> {
-  return fetch(`${API_BASE}/history?limit=${limit}`).then((r) => handle(r))
+  return apiFetch(`/history?limit=${limit}`).then((r) => handle(r))
 }
 
 export function clearHistory(): Promise<{ cleared: boolean }> {
-  return fetch(`${API_BASE}/history`, { method: 'DELETE' }).then((r) => handle(r))
+  return apiFetch('/history', { method: 'DELETE' }).then((r) => handle(r))
+}
+
+// --- Auth / admin ----------------------------------------------------------
+
+export interface CurrentUser {
+  id: number
+  email: string
+  role: Role
+  is_active: boolean
+}
+
+export function login(email: string, password: string): Promise<CurrentUser> {
+  return apiFetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  }).then((r) => handle(r))
+}
+
+export function logout(): Promise<{ logged_out: boolean }> {
+  return apiFetch('/auth/logout', { method: 'POST' }).then((r) => handle(r))
+}
+
+export function fetchMe(): Promise<CurrentUser | null> {
+  return apiFetch('/auth/me').then((r) => (r.status === 401 ? null : handle<CurrentUser>(r)))
+}
+
+export function fetchUsers(): Promise<CurrentUser[]> {
+  return apiFetch('/admin/users').then((r) => handle(r))
+}
+
+export function createUser(email: string, password: string, role: Role = 'user'): Promise<CurrentUser> {
+  return apiFetch('/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, role }),
+  }).then((r) => handle(r))
+}
+
+export function updateUser(id: number, patch: { password?: string; is_active?: boolean }): Promise<CurrentUser> {
+  return apiFetch(`/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).then((r) => handle(r))
+}
+
+export function deleteUser(id: number): Promise<{ deleted: boolean }> {
+  return apiFetch(`/admin/users/${id}`, { method: 'DELETE' }).then((r) => handle(r))
+}
+
+export interface AllowedIp {
+  id: number
+  ip_or_cidr: string
+}
+
+export function fetchAllowedIps(userId: number): Promise<AllowedIp[]> {
+  return apiFetch(`/admin/users/${userId}/ips`).then((r) => handle(r))
+}
+
+export function addAllowedIp(userId: number, ipOrCidr: string): Promise<AllowedIp> {
+  return apiFetch(`/admin/users/${userId}/ips`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip_or_cidr: ipOrCidr }),
+  }).then((r) => handle(r))
+}
+
+export function removeAllowedIp(userId: number, ipId: number): Promise<{ deleted: boolean }> {
+  return apiFetch(`/admin/users/${userId}/ips/${ipId}`, { method: 'DELETE' }).then((r) => handle(r))
 }

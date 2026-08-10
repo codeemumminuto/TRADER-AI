@@ -4,33 +4,49 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session as DBSession
 
-from app import candle_patterns, history, market_data, quant_forecast
+from app import auth, candle_patterns, history, market_data, quant_forecast
 from app.assets import CONTEXT_TIMEFRAMES, TIMEFRAMES, assets_for_risk, find_asset
+from app.auth import get_client_ip, get_current_user, require_admin
 from app.config import settings
 from app.confluence import blend_timeframes, compute_confluence
 from app.consensus import compute_final
+from app.db import SessionLocal, get_db, init_db
 from app.indicators import compute_indicators
 from app.market_data import UnknownAssetError
+from app.models import AllowedIP, User
 from app.providers.binance import BinanceError
 from app.providers.twelvedata import TwelveDataError
 from app.schemas import (
     AIAnalysis,
+    AllowedIPIn,
+    AllowedIPOut,
     AnalyzeRequest,
     AnalyzeResponse,
     AssetInfo,
     Candle,
     CandlesResponse,
     IndicatorResult,
+    LoginRequest,
     TimeframeReading,
+    UserCreate,
+    UserOut,
+    UserUpdate,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
+    db = SessionLocal()
+    try:
+        auth.ensure_bootstrap_admin(db)
+    finally:
+        db.close()
     await asyncio.to_thread(quant_forecast.preload)
     yield
 
@@ -42,21 +58,129 @@ app.add_middleware(
     allow_origins=[settings.cors_origin],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
 
 
+# --- Auth -----------------------------------------------------------------
+
+
+@app.post("/auth/login", response_model=UserOut)
+def login(req: LoginRequest, response: Response, request_ip: str = Depends(get_client_ip), db: DBSession = Depends(get_db)):
+    user = auth.authenticate(req.email, req.password, request_ip, db)
+    token = auth.create_session(user, request_ip, db)
+    response.set_cookie(
+        auth.COOKIE_NAME,
+        token,
+        httponly=True,
+        samesite="lax",
+        max_age=settings.session_ttl_hours * 3600,
+    )
+    return user
+
+
+@app.post("/auth/logout")
+def logout(
+    response: Response,
+    session_id: str | None = Cookie(default=None, alias=auth.COOKIE_NAME),
+    db: DBSession = Depends(get_db),
+):
+    auth.destroy_session(session_id, db)
+    response.delete_cookie(auth.COOKIE_NAME)
+    return {"logged_out": True}
+
+
+@app.get("/auth/me", response_model=UserOut)
+def me(user: User = Depends(get_current_user)):
+    return user
+
+
+# --- Admin ------------------------------------------------------------------
+
+
+@app.get("/admin/users", response_model=list[UserOut])
+def list_users(db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    return db.query(User).order_by(User.created_at).all()
+
+
+@app.post("/admin/users", response_model=UserOut)
+def create_user(req: UserCreate, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    if db.query(User).filter(User.email == req.email).first():
+        raise HTTPException(409, "Já existe um usuário com esse e-mail.")
+    user = User(email=req.email, password_hash=auth.hash_password(req.password), role=req.role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.patch("/admin/users/{user_id}", response_model=UserOut)
+def update_user(user_id: int, req: UserUpdate, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado.")
+    if req.password is not None:
+        user.password_hash = auth.hash_password(req.password)
+    if req.is_active is not None:
+        user.is_active = req.is_active
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.delete("/admin/users/{user_id}")
+def delete_user(user_id: int, db: DBSession = Depends(get_db), admin: User = Depends(require_admin)):
+    if user_id == admin.id:
+        raise HTTPException(400, "Não dá pra apagar o próprio usuário admin logado.")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado.")
+    db.delete(user)
+    db.commit()
+    return {"deleted": True}
+
+
+@app.get("/admin/users/{user_id}/ips", response_model=list[AllowedIPOut])
+def list_allowed_ips(user_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    return db.query(AllowedIP).filter(AllowedIP.user_id == user_id).all()
+
+
+@app.post("/admin/users/{user_id}/ips", response_model=AllowedIPOut)
+def add_allowed_ip(user_id: int, req: AllowedIPIn, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    if not db.get(User, user_id):
+        raise HTTPException(404, "Usuário não encontrado.")
+    entry = AllowedIP(user_id=user_id, ip_or_cidr=req.ip_or_cidr)
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@app.delete("/admin/users/{user_id}/ips/{ip_id}")
+def remove_allowed_ip(user_id: int, ip_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    entry = db.get(AllowedIP, ip_id)
+    if not entry or entry.user_id != user_id:
+        raise HTTPException(404, "IP não encontrado pra esse usuário.")
+    db.delete(entry)
+    db.commit()
+    return {"deleted": True}
+
+
+# --- Mercado / análise --------------------------------------------------------
+
+
 @app.get("/assets", response_model=list[AssetInfo])
-def get_assets(risk_profile: str | None = None):
+def get_assets(risk_profile: str | None = None, _user: User = Depends(get_current_user)):
     return assets_for_risk(risk_profile)
 
 
 @app.get("/timeframes")
-def get_timeframes():
+def get_timeframes(_user: User = Depends(get_current_user)):
     return list(TIMEFRAMES.keys())
 
 
 @app.get("/candles", response_model=CandlesResponse)
-async def get_candles(asset: str, timeframe: str = "1min", limit: int = 150):
+async def get_candles(asset: str, timeframe: str = "1min", limit: int = 150, _user: User = Depends(get_current_user)):
     if timeframe not in TIMEFRAMES:
         raise HTTPException(400, f"Timeframe inválido: {timeframe}")
     if find_asset(asset) is None:
@@ -72,7 +196,7 @@ async def get_candles(asset: str, timeframe: str = "1min", limit: int = 150):
 
 
 @app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(req: AnalyzeRequest):
+async def analyze(req: AnalyzeRequest, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
     if req.timeframe not in TIMEFRAMES:
         raise HTTPException(400, f"Timeframe inválido: {req.timeframe}")
     if find_asset(req.asset) is None:
@@ -169,7 +293,7 @@ async def analyze(req: AnalyzeRequest):
 
     record_id = str(uuid.uuid4())
 
-    history.add_record({
+    history.add_record(db, user.id, {
         "id": record_id,
         "asset": req.asset,
         "timeframe": req.timeframe,
@@ -225,15 +349,14 @@ async def analyze(req: AnalyzeRequest):
 
 
 @app.get("/history")
-def get_history(limit: int = 50):
-    records = history.load_all()
-    records_sorted = sorted(records, key=lambda r: r["predicted_at"], reverse=True)
-    return {"records": records_sorted[:limit]}
+def get_history(limit: int = 50, db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
+    records = history.load_all(db, user.id)
+    return {"records": records[:limit]}
 
 
 @app.delete("/history")
-def clear_history():
-    history.clear_all()
+def clear_history(db: DBSession = Depends(get_db), user: User = Depends(get_current_user)):
+    history.clear_all(db, user.id)
     return {"cleared": True}
 
 

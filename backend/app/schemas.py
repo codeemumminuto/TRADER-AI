@@ -89,3 +89,44 @@ class AnalyzeResponse(BaseModel):
         "Sugestão gerada a partir de indicadores técnicos reais, leitura independente da IA "
         "e (quando disponível) previsão estatística. Não é garantia de resultado — decisão final é sua."
     )
+
+
+# --- Auth / admin --------------------------------------------------------
+
+Role = Literal["admin", "user"]
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    email: str
+    role: Role
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    role: Role = "user"
+
+
+class UserUpdate(BaseModel):
+    password: str | None = None
+    is_active: bool | None = None
+
+
+class AllowedIPOut(BaseModel):
+    id: int
+    ip_or_cidr: str
+
+    model_config = {"from_attributes": True}
+
+
+class AllowedIPIn(BaseModel):
+    ip_or_cidr: str

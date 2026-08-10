@@ -1,35 +1,38 @@
-"""Armazenamento simples em JSON do log de previsões feitas — cada análise gera um registro
-com o horário em que a previsão foi feita, até quando ela vale, e o preço previsto. Não
-simula resultado (WIN/LOSS): é só um log de referência do que o sistema já previu."""
+"""Log de previsões — cada análise gera um registro com o horário em que a previsão foi feita,
+até quando ela vale, e o preço previsto. Não simula resultado (WIN/LOSS): é só um log de
+referência do que o sistema já previu. Escopado por usuário — cada um só vê o que é seu."""
 
-import json
-from pathlib import Path
+from sqlalchemy.orm import Session as DBSession
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-HISTORY_FILE = DATA_DIR / "history.json"
+from app.models import Prediction
 
-
-def _ensure_file() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not HISTORY_FILE.exists():
-        HISTORY_FILE.write_text("[]", encoding="utf-8")
-
-
-def load_all() -> list[dict]:
-    _ensure_file()
-    return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+_FIELDS = [
+    "asset", "timeframe", "direction", "confidence", "agreement", "unanimous", "confluence_score",
+    "indicator_direction", "indicator_confidence", "ai_direction", "ai_confidence", "ai_patterns",
+    "quant_direction", "quant_confidence", "quant_predicted_price", "predicted_at", "target_time",
+    "reasoning", "indicators", "timeframe_readings", "aligned_timeframes", "total_context_timeframes",
+]
 
 
-def save_all(records: list[dict]) -> None:
-    _ensure_file()
-    HISTORY_FILE.write_text(json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
+def _to_dict(pred: Prediction) -> dict:
+    return {"id": pred.id, **{f: getattr(pred, f) for f in _FIELDS}}
 
 
-def add_record(record: dict) -> None:
-    records = load_all()
-    records.append(record)
-    save_all(records)
+def add_record(db: DBSession, user_id: int, record: dict) -> None:
+    db.add(Prediction(id=record["id"], user_id=user_id, **{f: record[f] for f in _FIELDS}))
+    db.commit()
 
 
-def clear_all() -> None:
-    save_all([])
+def load_all(db: DBSession, user_id: int) -> list[dict]:
+    preds = (
+        db.query(Prediction)
+        .filter(Prediction.user_id == user_id)
+        .order_by(Prediction.predicted_at.desc())
+        .all()
+    )
+    return [_to_dict(p) for p in preds]
+
+
+def clear_all(db: DBSession, user_id: int) -> None:
+    db.query(Prediction).filter(Prediction.user_id == user_id).delete()
+    db.commit()
