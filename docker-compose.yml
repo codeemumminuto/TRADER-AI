@@ -3,15 +3,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: trader
-      POSTGRES_PASSWORD: trader
-      POSTGRES_DB: trader_ai
+      POSTGRES_USER: ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trader}
+      POSTGRES_DB: ${POSTGRES_DB:-trader_ai}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - trader_ai_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trader -d trader_ai"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trader_ai}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+psycopg://trader:trader@db:5432/trader_ai
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD:-trader}@db:5432/${POSTGRES_DB:-trader_ai}
       TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3011}
       SESSION_SECRET: ${SESSION_SECRET:-change-me}
@@ -33,7 +33,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@trader-ai.local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
     ports:
-      - "3011:3011"
+      - "127.0.0.1:3011:3011"
 
 volumes:
   trader_ai_db_data:

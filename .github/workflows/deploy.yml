@@ -23,11 +23,5 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            cd "$APP/backend"
-            venv/bin/pip install -r requirements.txt
-
-            cd "$APP/frontend"
-            npm ci
-            npm run build
-
-            pm2 restart trader-ai
+            docker compose build app
+            docker compose up -d
