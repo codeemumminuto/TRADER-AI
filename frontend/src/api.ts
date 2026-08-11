@@ -224,7 +224,13 @@ export function createUser(
 
 export function updateUser(
   id: number,
-  patch: { password?: string; is_active?: boolean; billing_period_days?: number | null },
+  patch: {
+    password?: string
+    is_active?: boolean
+    billing_period_days?: number | null
+    next_due_date?: string | null
+    clear_due_date?: boolean
+  },
 ): Promise<CurrentUser> {
   return apiFetch(`/admin/users/${id}`, {
     method: 'PATCH',

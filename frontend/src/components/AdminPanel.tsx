@@ -35,13 +35,28 @@ export default function AdminPanel({ onLogout }: Props) {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
-  function loadUsers() {
-    fetchUsers()
-      .then(setUsers)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Erro ao carregar usuários'))
+  // savingId: linha com uma alteração de cobrança em andamento (desabilita os controles dela).
+  // justSavedId: pisca um "Salvo!" por 2s depois que a alteração é confirmada pelo servidor —
+  // sem isso, mudar a data ou clicar em "Registrar pagamento" parecia não fazer nada.
+  const [savingId, setSavingId] = useState<number | null>(null)
+  const [justSavedId, setJustSavedId] = useState<number | null>(null)
+
+  async function loadUsers() {
+    try {
+      setUsers(await fetchUsers())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar usuários')
+    }
   }
 
-  useEffect(loadUsers, [])
+  useEffect(() => {
+    loadUsers()
+  }, [])
+
+  function flashSaved(id: number) {
+    setJustSavedId(id)
+    window.setTimeout(() => setJustSavedId((cur) => (cur === id ? null : cur)), 2000)
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -70,11 +85,34 @@ export default function AdminPanel({ onLogout }: Props) {
         return
       }
     }
+    setError(null)
+    setSavingId(user.id)
     try {
       await renewUser(user.id, period)
-      loadUsers()
+      await loadUsers()
+      flashSaved(user.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao renovar assinatura')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleDueDateChange(user: CurrentUser, value: string) {
+    setError(null)
+    setSavingId(user.id)
+    try {
+      if (value) {
+        await updateUser(user.id, { next_due_date: value })
+      } else {
+        await updateUser(user.id, { clear_due_date: true })
+      }
+      await loadUsers()
+      flashSaved(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar vencimento')
+    } finally {
+      setSavingId(null)
     }
   }
 
@@ -213,7 +251,21 @@ export default function AdminPanel({ onLogout }: Props) {
                           </span>
                         </td>
                         <td>
-                          {u.role === 'user' && <span className={`result-tag ${billing.className}`}>{billing.label}</span>}
+                          {u.role === 'user' && (
+                            <div className="billing-cell">
+                              <span className={`result-tag ${billing.className}`}>{billing.label}</span>
+                              <input
+                                type="date"
+                                className="billing-date-input"
+                                value={u.next_due_date ?? ''}
+                                disabled={savingId === u.id}
+                                onChange={(e) => handleDueDateChange(u, e.target.value)}
+                                title="Editar vencimento diretamente"
+                              />
+                              {savingId === u.id && <span className="billing-feedback saving">Salvando...</span>}
+                              {justSavedId === u.id && <span className="billing-feedback saved">Salvo!</span>}
+                            </div>
+                          )}
                         </td>
                         <td className="admin-user-actions">
                           {u.role === 'user' && (
@@ -221,7 +273,12 @@ export default function AdminPanel({ onLogout }: Props) {
                               <button type="button" className="secondary-detail" onClick={() => openIpManager(u.id)}>
                                 IPs
                               </button>
-                              <button type="button" className="secondary-detail" onClick={() => handleRenew(u)}>
+                              <button
+                                type="button"
+                                className="secondary-detail"
+                                disabled={savingId === u.id}
+                                onClick={() => handleRenew(u)}
+                              >
                                 Registrar pagamento
                               </button>
                             </>

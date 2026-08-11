@@ -124,6 +124,8 @@ class UserUpdate(BaseModel):
     password: str | None = None
     is_active: bool | None = None
     billing_period_days: int | None = None
+    next_due_date: date | None = None
+    clear_due_date: bool = False
 
 
 class RenewRequest(BaseModel):

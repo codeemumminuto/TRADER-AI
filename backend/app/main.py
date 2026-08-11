@@ -132,6 +132,10 @@ def update_user(user_id: int, req: UserUpdate, db: DBSession = Depends(get_db), 
         user.is_active = req.is_active
     if req.billing_period_days is not None:
         user.billing_period_days = req.billing_period_days
+    if req.clear_due_date:
+        user.next_due_date = None
+    elif req.next_due_date is not None:
+        user.next_due_date = req.next_due_date
     db.commit()
     db.refresh(user)
     return user
