@@ -28,6 +28,7 @@ def get_db():
 _COLUMN_ADDITIONS = [
     ("users", "next_due_date", "DATE"),
     ("users", "billing_period_days", "INTEGER"),
+    ("users", "notes", "VARCHAR(500)"),
 ]
 
 

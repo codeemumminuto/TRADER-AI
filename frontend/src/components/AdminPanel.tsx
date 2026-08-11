@@ -28,6 +28,7 @@ export default function AdminPanel({ onLogout }: Props) {
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState<Role>('user')
   const [newBillingDays, setNewBillingDays] = useState('30')
+  const [newNotes, setNewNotes] = useState('')
 
   const [managingUserId, setManagingUserId] = useState<number | null>(null)
   const [ips, setIps] = useState<AllowedIp[]>([])
@@ -63,11 +64,12 @@ export default function AdminPanel({ onLogout }: Props) {
     setError(null)
     try {
       const billingDays = newBillingDays.trim() ? Number(newBillingDays) : null
-      await createUser(newEmail, newPassword, newRole, billingDays)
+      await createUser(newEmail, newPassword, newRole, billingDays, newNotes.trim() || null)
       setNewEmail('')
       setNewPassword('')
       setNewRole('user')
       setNewBillingDays('30')
+      setNewNotes('')
       loadUsers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar usuário')
@@ -93,6 +95,21 @@ export default function AdminPanel({ onLogout }: Props) {
       flashSaved(user.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao renovar assinatura')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleNotesBlur(user: CurrentUser, value: string) {
+    if (value === (user.notes ?? '')) return
+    setError(null)
+    setSavingId(user.id)
+    try {
+      await updateUser(user.id, { notes: value })
+      await loadUsers()
+      flashSaved(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar observação')
     } finally {
       setSavingId(null)
     }
@@ -214,6 +231,15 @@ export default function AdminPanel({ onLogout }: Props) {
                 />
               </div>
             </div>
+            <div className="field">
+              <label>Observação</label>
+              <input
+                type="text"
+                placeholder="opcional — anotação interna sobre esse usuário"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+              />
+            </div>
             <button type="submit" className="analyze-button">
               Criar usuário
             </button>
@@ -235,6 +261,7 @@ export default function AdminPanel({ onLogout }: Props) {
                     <th>Papel</th>
                     <th>Status</th>
                     <th>Cobrança</th>
+                    <th>Observação</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -262,10 +289,23 @@ export default function AdminPanel({ onLogout }: Props) {
                                 onChange={(e) => handleDueDateChange(u, e.target.value)}
                                 title="Editar vencimento diretamente"
                               />
-                              {savingId === u.id && <span className="billing-feedback saving">Salvando...</span>}
-                              {justSavedId === u.id && <span className="billing-feedback saved">Salvo!</span>}
                             </div>
                           )}
+                        </td>
+                        <td>
+                          <div className="billing-cell">
+                            <input
+                              type="text"
+                              className="notes-input"
+                              defaultValue={u.notes ?? ''}
+                              key={u.notes ?? ''}
+                              disabled={savingId === u.id}
+                              placeholder="—"
+                              onBlur={(e) => handleNotesBlur(u, e.target.value)}
+                            />
+                            {savingId === u.id && <span className="billing-feedback saving">Salvando...</span>}
+                            {justSavedId === u.id && <span className="billing-feedback saved">Salvo!</span>}
+                          </div>
                         </td>
                         <td className="admin-user-actions">
                           {u.role === 'user' && (

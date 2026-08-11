@@ -27,6 +27,8 @@ class User(Base):
     next_due_date: Mapped[date | None] = mapped_column(Date, default=None)
     billing_period_days: Mapped[int | None] = mapped_column(Integer, default=None)
 
+    notes: Mapped[str | None] = mapped_column(String(500), default=None)
+
     allowed_ips: Mapped[list["AllowedIP"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 

@@ -30,7 +30,6 @@ export default function LoginPage({ onLoggedIn }: Props) {
     <div className="login-shell">
       <form className="login-card" onSubmit={handleSubmit}>
         <img src={logo} className="login-logo" alt="BinAI" />
-        <h1>BinAI</h1>
         <p className="login-subtitle">Entre com sua conta</p>
 
         <div className="field">

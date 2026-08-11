@@ -114,6 +114,7 @@ def create_user(req: UserCreate, db: DBSession = Depends(get_db), _admin: User =
         role=req.role,
         billing_period_days=req.billing_period_days,
         next_due_date=date.today() + timedelta(days=req.billing_period_days) if req.billing_period_days else None,
+        notes=req.notes,
     )
     db.add(user)
     db.commit()
@@ -136,6 +137,8 @@ def update_user(user_id: int, req: UserUpdate, db: DBSession = Depends(get_db), 
         user.next_due_date = None
     elif req.next_due_date is not None:
         user.next_due_date = req.next_due_date
+    if req.notes is not None:
+        user.notes = req.notes
     db.commit()
     db.refresh(user)
     return user

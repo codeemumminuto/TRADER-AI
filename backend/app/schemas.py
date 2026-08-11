@@ -109,6 +109,7 @@ class UserOut(BaseModel):
     is_active: bool
     next_due_date: date | None = None
     billing_period_days: int | None = None
+    notes: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -118,6 +119,7 @@ class UserCreate(BaseModel):
     password: str
     role: Role = "user"
     billing_period_days: int | None = None
+    notes: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -126,6 +128,7 @@ class UserUpdate(BaseModel):
     billing_period_days: int | None = None
     next_due_date: date | None = None
     clear_due_date: bool = False
+    notes: str | None = None
 
 
 class RenewRequest(BaseModel):

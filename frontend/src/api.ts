@@ -187,6 +187,7 @@ export interface CurrentUser {
   is_active: boolean
   next_due_date: string | null
   billing_period_days: number | null
+  notes: string | null
 }
 
 export function login(email: string, password: string): Promise<CurrentUser> {
@@ -214,11 +215,12 @@ export function createUser(
   password: string,
   role: Role = 'user',
   billingPeriodDays?: number | null,
+  notes?: string | null,
 ): Promise<CurrentUser> {
   return apiFetch('/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role, billing_period_days: billingPeriodDays ?? null }),
+    body: JSON.stringify({ email, password, role, billing_period_days: billingPeriodDays ?? null, notes: notes ?? null }),
   }).then((r) => handle(r))
 }
 
@@ -230,6 +232,7 @@ export function updateUser(
     billing_period_days?: number | null
     next_due_date?: string | null
     clear_due_date?: boolean
+    notes?: string
   },
 ): Promise<CurrentUser> {
   return apiFetch(`/admin/users/${id}`, {
