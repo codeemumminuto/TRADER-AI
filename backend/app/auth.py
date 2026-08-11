@@ -3,7 +3,7 @@ pra revogar sessão na hora e checar o IP a cada request, não só no login."""
 
 import ipaddress
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import bcrypt
 from fastapi import Cookie, Depends, HTTPException, Request
@@ -58,6 +58,13 @@ def ip_allowed(ip: str, allowlist: list[str]) -> bool:
     return False
 
 
+def subscription_overdue(user: User) -> bool:
+    """Admin nunca é cobrado; next_due_date nulo = sem cobrança configurada, nunca vence sozinho."""
+    if user.role == "admin" or user.next_due_date is None:
+        return False
+    return user.next_due_date < date.today()
+
+
 def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
     user = db.query(User).filter(User.email == email).first()
     if not user or not user.is_active:
@@ -85,6 +92,10 @@ def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
             raise HTTPException(403, f"IP {ip} não autorizado para esse usuário — peça pro administrador liberar.")
 
     db.commit()
+
+    if subscription_overdue(user):
+        raise HTTPException(402, "Assinatura vencida — contate o administrador pra renovar o acesso.")
+
     return user
 
 
@@ -132,6 +143,8 @@ def get_current_user(
     user = db.get(User, session.user_id)
     if not user or not user.is_active:
         raise HTTPException(401, "Usuário inativo.")
+    if subscription_overdue(user):
+        raise HTTPException(402, "Assinatura vencida — contate o administrador pra renovar o acesso.")
     return user
 
 
@@ -167,5 +180,6 @@ __all__ = [
     "hash_password",
     "ip_allowed",
     "require_admin",
+    "subscription_overdue",
     "verify_password",
 ]

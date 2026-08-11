@@ -8,6 +8,7 @@ import {
   fetchAllowedIps,
   fetchUsers,
   removeAllowedIp,
+  renewUser,
   updateUser,
   type AllowedIp,
   type CurrentUser,
@@ -26,6 +27,7 @@ export default function AdminPanel({ onLogout }: Props) {
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState<Role>('user')
+  const [newBillingDays, setNewBillingDays] = useState('30')
 
   const [managingUserId, setManagingUserId] = useState<number | null>(null)
   const [ips, setIps] = useState<AllowedIp[]>([])
@@ -45,14 +47,45 @@ export default function AdminPanel({ onLogout }: Props) {
     e.preventDefault()
     setError(null)
     try {
-      await createUser(newEmail, newPassword, newRole)
+      const billingDays = newBillingDays.trim() ? Number(newBillingDays) : null
+      await createUser(newEmail, newPassword, newRole, billingDays)
       setNewEmail('')
       setNewPassword('')
       setNewRole('user')
+      setNewBillingDays('30')
       loadUsers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar usuário')
     }
+  }
+
+  async function handleRenew(user: CurrentUser) {
+    let period = user.billing_period_days
+    if (!period) {
+      const input = window.prompt(`Periodicidade em dias pra ${user.email} (ex.: 30):`)
+      if (!input) return
+      period = Number(input)
+      if (!period || period <= 0) {
+        setError('Periodicidade inválida.')
+        return
+      }
+    }
+    try {
+      await renewUser(user.id, period)
+      loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao renovar assinatura')
+    }
+  }
+
+  function billingStatus(user: CurrentUser): { label: string; className: string } {
+    if (!user.next_due_date) return { label: 'Sem cobrança', className: 'result-empate' }
+    const due = new Date(`${user.next_due_date}T00:00:00`)
+    const dueLabel = due.toLocaleDateString('pt-BR')
+    const overdue = due.getTime() < new Date().setHours(0, 0, 0, 0)
+    return overdue
+      ? { label: `Venceu em ${dueLabel}`, className: 'result-loss' }
+      : { label: `Vence em ${dueLabel}`, className: 'result-win' }
   }
 
   async function handleToggleActive(user: CurrentUser) {
@@ -131,6 +164,18 @@ export default function AdminPanel({ onLogout }: Props) {
                 </button>
               </div>
             </div>
+            <div className="field">
+              <label>Periodicidade de cobrança (dias)</label>
+              <div className="min-confidence-field">
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="em branco = sem cobrança"
+                  value={newBillingDays}
+                  onChange={(e) => setNewBillingDays(e.target.value)}
+                />
+              </div>
+            </div>
             <button type="submit" className="analyze-button">
               Criar usuário
             </button>
@@ -151,37 +196,49 @@ export default function AdminPanel({ onLogout }: Props) {
                     <th>E-mail</th>
                     <th>Papel</th>
                     <th>Status</th>
+                    <th>Cobrança</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.email}</td>
-                      <td>{u.role === 'admin' ? 'Admin' : 'Usuário'}</td>
-                      <td>
-                        <span className={`result-tag ${u.is_active ? 'result-win' : 'result-loss'}`}>
-                          {u.is_active ? 'Ativo' : 'Desativado'}
-                        </span>
-                      </td>
-                      <td className="admin-user-actions">
-                        {u.role === 'user' && (
-                          <button type="button" className="secondary-detail" onClick={() => openIpManager(u.id)}>
-                            IPs
+                  {users.map((u) => {
+                    const billing = billingStatus(u)
+                    return (
+                      <tr key={u.id}>
+                        <td>{u.email}</td>
+                        <td>{u.role === 'admin' ? 'Admin' : 'Usuário'}</td>
+                        <td>
+                          <span className={`result-tag ${u.is_active ? 'result-win' : 'result-loss'}`}>
+                            {u.is_active ? 'Ativo' : 'Desativado'}
+                          </span>
+                        </td>
+                        <td>
+                          {u.role === 'user' && <span className={`result-tag ${billing.className}`}>{billing.label}</span>}
+                        </td>
+                        <td className="admin-user-actions">
+                          {u.role === 'user' && (
+                            <>
+                              <button type="button" className="secondary-detail" onClick={() => openIpManager(u.id)}>
+                                IPs
+                              </button>
+                              <button type="button" className="secondary-detail" onClick={() => handleRenew(u)}>
+                                Registrar pagamento
+                              </button>
+                            </>
+                          )}
+                          <button type="button" className="secondary-detail" onClick={() => handleToggleActive(u)}>
+                            {u.is_active ? 'Desativar' : 'Ativar'}
                           </button>
-                        )}
-                        <button type="button" className="secondary-detail" onClick={() => handleToggleActive(u)}>
-                          {u.is_active ? 'Desativar' : 'Ativar'}
-                        </button>
-                        <button type="button" className="secondary-detail" onClick={() => handleResetPassword(u)}>
-                          Trocar senha
-                        </button>
-                        <button type="button" className="secondary-remove" onClick={() => setConfirmDeleteId(u.id)} title="Excluir">
-                          <FaTrash />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                          <button type="button" className="secondary-detail" onClick={() => handleResetPassword(u)}>
+                            Trocar senha
+                          </button>
+                          <button type="button" className="secondary-remove" onClick={() => setConfirmDeleteId(u.id)} title="Excluir">
+                            <FaTrash />
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

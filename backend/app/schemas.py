@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -106,6 +107,8 @@ class UserOut(BaseModel):
     email: str
     role: Role
     is_active: bool
+    next_due_date: date | None = None
+    billing_period_days: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -114,11 +117,17 @@ class UserCreate(BaseModel):
     email: str
     password: str
     role: Role = "user"
+    billing_period_days: int | None = None
 
 
 class UserUpdate(BaseModel):
     password: str | None = None
     is_active: bool | None = None
+    billing_period_days: int | None = None
+
+
+class RenewRequest(BaseModel):
+    period_days: int | None = None
 
 
 class AllowedIPOut(BaseModel):

@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -21,6 +21,11 @@ class User(Base):
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    # Cobrança recorrente — null em ambos = sem cobrança configurada, acesso nunca expira sozinho.
+    # "Registrar pagamento" empurra next_due_date pra frente em billing_period_days.
+    next_due_date: Mapped[date | None] = mapped_column(Date, default=None)
+    billing_period_days: Mapped[int | None] = mapped_column(Integer, default=None)
 
     allowed_ips: Mapped[list["AllowedIP"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

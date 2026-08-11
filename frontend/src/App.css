@@ -488,6 +488,18 @@
   color: #f87171;
 }
 
+.badge-pending {
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--muted);
+  font-weight: 600;
+  animation: badge-pending-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes badge-pending-pulse {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
 .countdown-ring {
   display: block;
   margin: 0 auto;

@@ -53,7 +53,11 @@ export default function ResultCard({ result, highlighted, onOpenDetail }: Props)
           {result.asset} <span className="result-timeframe">{result.timeframe}</span>
         </span>
         <div className="result-header-actions">
-          <span className={`result-badge badge-${result.direction.toLowerCase()}`}>{result.direction}</span>
+          {highlighted ? (
+            <span className={`result-badge badge-${result.direction.toLowerCase()}`}>{result.direction}</span>
+          ) : (
+            <span className="result-badge badge-pending">Analisando...</span>
+          )}
           {onOpenDetail && (
             <button type="button" className="result-detail-button" onClick={onOpenDetail}>
               <FaInfoCircle /> ver confluências

@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Response
@@ -18,7 +18,7 @@ from app.consensus import compute_final
 from app.db import SessionLocal, get_db, init_db
 from app.indicators import compute_indicators
 from app.market_data import UnknownAssetError
-from app.models import AllowedIP, User
+from app.models import AllowedIP, Session, User
 from app.providers.binance import BinanceError
 from app.providers.twelvedata import TwelveDataError
 from app.schemas import (
@@ -32,6 +32,7 @@ from app.schemas import (
     CandlesResponse,
     IndicatorResult,
     LoginRequest,
+    RenewRequest,
     TimeframeReading,
     UserCreate,
     UserOut,
@@ -107,7 +108,13 @@ def list_users(db: DBSession = Depends(get_db), _admin: User = Depends(require_a
 def create_user(req: UserCreate, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(409, "Já existe um usuário com esse e-mail.")
-    user = User(email=req.email, password_hash=auth.hash_password(req.password), role=req.role)
+    user = User(
+        email=req.email,
+        password_hash=auth.hash_password(req.password),
+        role=req.role,
+        billing_period_days=req.billing_period_days,
+        next_due_date=date.today() + timedelta(days=req.billing_period_days) if req.billing_period_days else None,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -123,6 +130,26 @@ def update_user(user_id: int, req: UserUpdate, db: DBSession = Depends(get_db), 
         user.password_hash = auth.hash_password(req.password)
     if req.is_active is not None:
         user.is_active = req.is_active
+    if req.billing_period_days is not None:
+        user.billing_period_days = req.billing_period_days
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.post("/admin/users/{user_id}/renew", response_model=UserOut)
+def renew_user(user_id: int, req: RenewRequest, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    """"Registrar pagamento" — empurra o vencimento pra frente em period_days, a partir do
+    vencimento atual (se ainda não passou) ou de hoje (se já tinha vencido)."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado.")
+    period = req.period_days or user.billing_period_days
+    if not period:
+        raise HTTPException(400, "Informe a periodicidade (em dias) — esse usuário ainda não tem uma configurada.")
+    base = user.next_due_date if user.next_due_date and user.next_due_date >= date.today() else date.today()
+    user.next_due_date = base + timedelta(days=period)
+    user.billing_period_days = period
     db.commit()
     db.refresh(user)
     return user
@@ -135,6 +162,7 @@ def delete_user(user_id: int, db: DBSession = Depends(get_db), admin: User = Dep
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(404, "Usuário não encontrado.")
+    db.query(Session).filter(Session.user_id == user_id).delete()
     db.delete(user)
     db.commit()
     return {"deleted": True}

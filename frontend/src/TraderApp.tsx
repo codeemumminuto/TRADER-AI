@@ -23,12 +23,13 @@ import './App.css'
 
 const WATCH_KEYS_STORAGE_KEY = 'binai_watched_keys_v1'
 
-const STATUS_ORDER: Record<WatchStatus, number> = {
-  running: 0,
-  queued: 1,
-  done: 2,
-  error: 3,
-  stopped: 4,
+// Ordem fixa de exibição dos cards — por timeframe (M1, M5, M15...) e depois por ativo, nunca
+// por confiança: reordenar a cada análise nova é o que deixava a tela "pulando" e confusa.
+const TIMEFRAME_ORDER = ['1min', '5min', '15min', '30min', '1h', '4h']
+
+function timeframeRank(timeframe: string): number {
+  const idx = TIMEFRAME_ORDER.indexOf(timeframe)
+  return idx === -1 ? TIMEFRAME_ORDER.length : idx
 }
 
 const STATUS_LABEL: Record<WatchStatus, string> = {
@@ -398,10 +399,9 @@ function TraderApp({ user, onLogout }: Props) {
   }
 
   const sorted = [...watchlist].sort((a, b) => {
-    if (a.result && b.result) return b.result.confidence - a.result.confidence
-    if (a.result) return -1
-    if (b.result) return 1
-    return STATUS_ORDER[a.status] - STATUS_ORDER[b.status]
+    const tfDiff = timeframeRank(a.timeframe) - timeframeRank(b.timeframe)
+    if (tfDiff !== 0) return tfDiff
+    return a.asset.localeCompare(b.asset)
   })
 
   return (

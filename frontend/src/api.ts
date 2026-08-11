@@ -185,6 +185,8 @@ export interface CurrentUser {
   email: string
   role: Role
   is_active: boolean
+  next_due_date: string | null
+  billing_period_days: number | null
 }
 
 export function login(email: string, password: string): Promise<CurrentUser> {
@@ -207,19 +209,35 @@ export function fetchUsers(): Promise<CurrentUser[]> {
   return apiFetch('/admin/users').then((r) => handle(r))
 }
 
-export function createUser(email: string, password: string, role: Role = 'user'): Promise<CurrentUser> {
+export function createUser(
+  email: string,
+  password: string,
+  role: Role = 'user',
+  billingPeriodDays?: number | null,
+): Promise<CurrentUser> {
   return apiFetch('/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role }),
+    body: JSON.stringify({ email, password, role, billing_period_days: billingPeriodDays ?? null }),
   }).then((r) => handle(r))
 }
 
-export function updateUser(id: number, patch: { password?: string; is_active?: boolean }): Promise<CurrentUser> {
+export function updateUser(
+  id: number,
+  patch: { password?: string; is_active?: boolean; billing_period_days?: number | null },
+): Promise<CurrentUser> {
   return apiFetch(`/admin/users/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
+  }).then((r) => handle(r))
+}
+
+export function renewUser(id: number, periodDays?: number): Promise<CurrentUser> {
+  return apiFetch(`/admin/users/${id}/renew`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period_days: periodDays ?? null }),
   }).then((r) => handle(r))
 }
 
