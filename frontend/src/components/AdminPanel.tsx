@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FaSignOutAlt, FaTimes, FaTrash } from 'react-icons/fa'
+import { FaKey, FaSignOutAlt, FaTimes, FaTrash } from 'react-icons/fa'
 import logo from '../assets/logo.png'
 import {
   addAllowedIp,
@@ -17,6 +17,7 @@ import {
   type PendingIp,
   type Role,
 } from '../api'
+import ChangePasswordModal from './ChangePasswordModal'
 import ConfirmDialog from './ConfirmDialog'
 
 interface Props {
@@ -40,6 +41,7 @@ export default function AdminPanel({ onLogout }: Props) {
   const [pendingIps, setPendingIps] = useState<PendingIp[]>([])
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   // savingId: linha com uma alteração de cobrança em andamento (desabilita os controles dela).
   // justSavedId: pisca um "Salvo!" por 2s depois que a alteração é confirmada pelo servidor —
@@ -238,6 +240,9 @@ export default function AdminPanel({ onLogout }: Props) {
           <p>Cadastro de usuários e liberação de IPs</p>
         </div>
         <div className="header-actions">
+          <button type="button" className="history-trigger-button" onClick={() => setChangePasswordOpen(true)}>
+            <FaKey /> Trocar senha
+          </button>
           <button type="button" className="history-trigger-button" onClick={onLogout}>
             <FaSignOutAlt /> Sair
           </button>
@@ -475,6 +480,8 @@ export default function AdminPanel({ onLogout }: Props) {
           onCancel={() => setConfirmDeleteId(null)}
         />
       )}
+
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
     </div>
   )
 }

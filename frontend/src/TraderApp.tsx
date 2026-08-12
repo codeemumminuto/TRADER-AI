@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaHistory, FaRedo, FaSignOutAlt, FaTimes } from 'react-icons/fa'
+import { FaHistory, FaKey, FaRedo, FaSignOutAlt, FaTimes } from 'react-icons/fa'
 import AnalyzerForm, { type AnalyzePair } from './components/AnalyzerForm'
 import ResultCard from './components/ResultCard'
 import HistoryModal from './components/HistoryModal'
 import AnalysisModal from './components/AnalysisModal'
+import ChangePasswordModal from './components/ChangePasswordModal'
 import Footer from './components/Footer'
 import SoundToggle from './components/SoundToggle'
 import logo from './assets/logo.png'
@@ -74,6 +75,7 @@ function TraderApp({ user, onLogout }: Props) {
   const [formError, setFormError] = useState<string | null>(null)
   const [minConfidence, setMinConfidence] = useState(70)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [detailEntry, setDetailEntry] = useState<{ asset: string; result: AnalyzeResponse } | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
 
@@ -417,6 +419,9 @@ function TraderApp({ user, onLogout }: Props) {
           <button type="button" className="history-trigger-button" onClick={() => setHistoryOpen(true)}>
             <FaHistory /> Histórico
           </button>
+          <button type="button" className="history-trigger-button" onClick={() => setChangePasswordOpen(true)}>
+            <FaKey /> Trocar senha
+          </button>
           <button type="button" className="history-trigger-button" onClick={onLogout}>
             <FaSignOutAlt /> Sair
           </button>
@@ -501,6 +506,7 @@ function TraderApp({ user, onLogout }: Props) {
       </main>
 
       {historyOpen && <HistoryModal onClose={() => setHistoryOpen(false)} />}
+      {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
       {detailEntry && (
         <AnalysisModal asset={detailEntry.asset} result={detailEntry.result} onClose={() => setDetailEntry(null)} />
       )}

@@ -1,8 +1,7 @@
 import { FaInstagram, FaWhatsapp } from 'react-icons/fa'
 
-// Placeholders de teste — troque pelo número/whatsapp e @ reais antes de publicar.
-const WHATSAPP_NUMBER = '5511999999999'
-const INSTAGRAM_HANDLE = 'binai.ia'
+const WHATSAPP_NUMBER = '554891988246'
+const INSTAGRAM_HANDLE = 'andersentrader'
 
 export default function Footer() {
   return (

@@ -30,6 +30,7 @@ from app.schemas import (
     AssetInfo,
     Candle,
     CandlesResponse,
+    ChangePasswordRequest,
     IndicatorResult,
     LoginRequest,
     PendingIpOut,
@@ -95,6 +96,19 @@ def logout(
 @app.get("/auth/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+@app.post("/auth/change-password")
+def change_password(
+    req: ChangePasswordRequest,
+    db: DBSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not auth.verify_password(req.current_password, user.password_hash):
+        raise HTTPException(400, "Senha atual incorreta.")
+    user.password_hash = auth.hash_password(req.new_password)
+    db.commit()
+    return {"changed": True}
 
 
 # --- Admin ------------------------------------------------------------------

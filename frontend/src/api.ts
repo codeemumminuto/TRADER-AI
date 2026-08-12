@@ -206,6 +206,14 @@ export function fetchMe(): Promise<CurrentUser | null> {
   return apiFetch('/auth/me').then((r) => (r.status === 401 ? null : handle<CurrentUser>(r)))
 }
 
+export function changePassword(currentPassword: string, newPassword: string): Promise<{ changed: boolean }> {
+  return apiFetch('/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  }).then((r) => handle(r))
+}
+
 export function fetchUsers(): Promise<CurrentUser[]> {
   return apiFetch('/admin/users').then((r) => handle(r))
 }
