@@ -3,15 +3,18 @@ import { FaSignOutAlt, FaTimes, FaTrash } from 'react-icons/fa'
 import logo from '../assets/logo.png'
 import {
   addAllowedIp,
+  approveAllowedIp,
   createUser,
   deleteUser,
   fetchAllowedIps,
+  fetchPendingIps,
   fetchUsers,
   removeAllowedIp,
   renewUser,
   updateUser,
   type AllowedIp,
   type CurrentUser,
+  type PendingIp,
   type Role,
 } from '../api'
 import ConfirmDialog from './ConfirmDialog'
@@ -34,6 +37,8 @@ export default function AdminPanel({ onLogout }: Props) {
   const [ips, setIps] = useState<AllowedIp[]>([])
   const [newIp, setNewIp] = useState('')
 
+  const [pendingIps, setPendingIps] = useState<PendingIp[]>([])
+
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   // savingId: linha com uma alteração de cobrança em andamento (desabilita os controles dela).
@@ -50,9 +55,43 @@ export default function AdminPanel({ onLogout }: Props) {
     }
   }
 
+  async function loadPendingIps() {
+    try {
+      setPendingIps(await fetchPendingIps())
+    } catch {
+      // silencioso — não deixa o polling periódico martelar o banner de erro
+    }
+  }
+
   useEffect(() => {
     loadUsers()
+    loadPendingIps()
+    // Poll pra pegar solicitações novas sem precisar recarregar a página manualmente.
+    const timer = window.setInterval(loadPendingIps, 10_000)
+    return () => window.clearInterval(timer)
   }, [])
+
+  async function handleApprovePending(p: PendingIp) {
+    setError(null)
+    try {
+      await approveAllowedIp(p.user_id, p.id)
+      await loadPendingIps()
+      if (managingUserId === p.user_id) openIpManager(p.user_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao aprovar IP')
+    }
+  }
+
+  async function handleRejectPending(p: PendingIp) {
+    setError(null)
+    try {
+      await removeAllowedIp(p.user_id, p.id)
+      await loadPendingIps()
+      if (managingUserId === p.user_id) openIpManager(p.user_id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao rejeitar IP')
+    }
+  }
 
   function flashSaved(id: number) {
     setJustSavedId(id)
@@ -178,6 +217,14 @@ export default function AdminPanel({ onLogout }: Props) {
     if (managingUserId == null) return
     await removeAllowedIp(managingUserId, ipId)
     setIps((prev) => prev.filter((i) => i.id !== ipId))
+    loadPendingIps()
+  }
+
+  async function handleApproveIpInline(ipId: number) {
+    if (managingUserId == null) return
+    const approved = await approveAllowedIp(managingUserId, ipId)
+    setIps((prev) => prev.map((i) => (i.id === ipId ? approved : i)))
+    loadPendingIps()
   }
 
   const managingUser = users.find((u) => u.id === managingUserId) ?? null
@@ -248,6 +295,31 @@ export default function AdminPanel({ onLogout }: Props) {
 
         <div className="column-center">
           {error && <div className="error-banner">{error}</div>}
+
+          {pendingIps.length > 0 && (
+            <div className="history-panel pending-ips-panel">
+              <div className="history-header">
+                <span>IPs pendentes de aprovação ({pendingIps.length})</span>
+              </div>
+              <ul className="model-info-list">
+                {pendingIps.map((p) => (
+                  <li key={p.id}>
+                    <span className="model-info-name">
+                      {p.email} — <span className="pending-ip-address">{p.ip_or_cidr}</span>
+                    </span>
+                    <div className="admin-user-actions">
+                      <button type="button" className="secondary-detail" onClick={() => handleApprovePending(p)}>
+                        Aprovar
+                      </button>
+                      <button type="button" className="secondary-remove" onClick={() => handleRejectPending(p)} title="Rejeitar">
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="history-panel">
             <div className="history-header">
@@ -358,10 +430,20 @@ export default function AdminPanel({ onLogout }: Props) {
                 <ul className="model-info-list">
                   {ips.map((ip) => (
                     <li key={ip.id}>
-                      <span className="model-info-name">{ip.ip_or_cidr}</span>
-                      <button type="button" className="secondary-remove" onClick={() => handleRemoveIp(ip.id)} title="Remover">
-                        <FaTrash />
-                      </button>
+                      <span className="model-info-name">
+                        {ip.ip_or_cidr}{' '}
+                        {ip.pending && <span className="result-tag result-loss">Pendente</span>}
+                      </span>
+                      <div className="admin-user-actions">
+                        {ip.pending && (
+                          <button type="button" className="secondary-detail" onClick={() => handleApproveIpInline(ip.id)}>
+                            Aprovar
+                          </button>
+                        )}
+                        <button type="button" className="secondary-remove" onClick={() => handleRemoveIp(ip.id)} title="Remover">
+                          <FaTrash />
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>

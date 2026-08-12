@@ -32,6 +32,7 @@ from app.schemas import (
     CandlesResponse,
     IndicatorResult,
     LoginRequest,
+    PendingIpOut,
     RenewRequest,
     TimeframeReading,
     UserCreate,
@@ -199,6 +200,32 @@ def remove_allowed_ip(user_id: int, ip_id: int, db: DBSession = Depends(get_db),
     db.delete(entry)
     db.commit()
     return {"deleted": True}
+
+
+@app.post("/admin/users/{user_id}/ips/{ip_id}/approve", response_model=AllowedIPOut)
+def approve_allowed_ip(user_id: int, ip_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    entry = db.get(AllowedIP, ip_id)
+    if not entry or entry.user_id != user_id:
+        raise HTTPException(404, "IP não encontrado pra esse usuário.")
+    entry.pending = False
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+@app.get("/admin/pending-ips", response_model=list[PendingIpOut])
+def list_pending_ips(db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    rows = (
+        db.query(AllowedIP, User.email)
+        .join(User, User.id == AllowedIP.user_id)
+        .filter(AllowedIP.pending.is_(True))
+        .order_by(AllowedIP.created_at)
+        .all()
+    )
+    return [
+        PendingIpOut(id=ip.id, user_id=ip.user_id, email=email, ip_or_cidr=ip.ip_or_cidr, requested_at=ip.created_at)
+        for ip, email in rows
+    ]
 
 
 # --- Mercado / análise --------------------------------------------------------

@@ -257,6 +257,7 @@ export function deleteUser(id: number): Promise<{ deleted: boolean }> {
 export interface AllowedIp {
   id: number
   ip_or_cidr: string
+  pending: boolean
 }
 
 export function fetchAllowedIps(userId: number): Promise<AllowedIp[]> {
@@ -273,4 +274,20 @@ export function addAllowedIp(userId: number, ipOrCidr: string): Promise<AllowedI
 
 export function removeAllowedIp(userId: number, ipId: number): Promise<{ deleted: boolean }> {
   return apiFetch(`/admin/users/${userId}/ips/${ipId}`, { method: 'DELETE' }).then((r) => handle(r))
+}
+
+export function approveAllowedIp(userId: number, ipId: number): Promise<AllowedIp> {
+  return apiFetch(`/admin/users/${userId}/ips/${ipId}/approve`, { method: 'POST' }).then((r) => handle(r))
+}
+
+export interface PendingIp {
+  id: number
+  user_id: number
+  email: string
+  ip_or_cidr: string
+  requested_at: string
+}
+
+export function fetchPendingIps(): Promise<PendingIp[]> {
+  return apiFetch('/admin/pending-ips').then((r) => handle(r))
 }

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.db import get_db
-from app.models import Session as SessionModel, User
+from app.models import AllowedIP, Session as SessionModel, User
 
 COOKIE_NAME = "session_id"
 MAX_FAILED_ATTEMPTS = 5
@@ -86,10 +86,16 @@ def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
     user.locked_until = None
 
     if user.role != "admin":
-        allowlist = [a.ip_or_cidr for a in user.allowed_ips]
+        allowlist = [a.ip_or_cidr for a in user.allowed_ips if not a.pending]
         if not ip_allowed(ip, allowlist):
+            already_pending = any(a.pending and a.ip_or_cidr == ip for a in user.allowed_ips)
+            if not already_pending:
+                db.add(AllowedIP(user_id=user.id, ip_or_cidr=ip, pending=True))
             db.commit()
-            raise HTTPException(403, f"IP {ip} não autorizado para esse usuário — peça pro administrador liberar.")
+            raise HTTPException(
+                403,
+                "Seu acesso está pendente de aprovação do administrador. Tente novamente em alguns minutos.",
+            )
 
     db.commit()
 

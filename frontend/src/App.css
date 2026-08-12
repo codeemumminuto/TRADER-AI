@@ -830,6 +830,15 @@
   color: var(--silver);
 }
 
+.pending-ips-panel {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.pending-ip-address {
+  font-family: monospace;
+  color: var(--muted);
+}
+
 .model-info-weight {
   font-weight: 700;
   font-family: monospace;
@@ -1051,6 +1060,16 @@
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 13px;
+}
+
+.pending-banner {
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  color: #facc15;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
 }
 
 /* History panel */

@@ -61,7 +61,9 @@ export default function LoginPage({ onLoggedIn }: Props) {
           pelo WhatsApp.
         </p>
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && (
+          <div className={error.includes('pendente de aprovação') ? 'pending-banner' : 'error-banner'}>{error}</div>
+        )}
 
         <button type="submit" className="analyze-button" disabled={loading}>
           {loading ? 'Entrando...' : 'Entrar'}

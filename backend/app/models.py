@@ -39,6 +39,9 @@ class AllowedIP(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     ip_or_cidr: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    # True quando criado automaticamente por uma tentativa de login de um IP não liberado —
+    # não conta pra ip_allowed() até o admin aprovar. Entradas criadas pelo admin nascem False.
+    pending: Mapped[bool] = mapped_column(default=False)
 
     user: Mapped["User"] = relationship(back_populates="allowed_ips")
 

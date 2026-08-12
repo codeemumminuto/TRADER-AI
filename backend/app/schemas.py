@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -138,9 +138,18 @@ class RenewRequest(BaseModel):
 class AllowedIPOut(BaseModel):
     id: int
     ip_or_cidr: str
+    pending: bool
 
     model_config = {"from_attributes": True}
 
 
 class AllowedIPIn(BaseModel):
     ip_or_cidr: str
+
+
+class PendingIpOut(BaseModel):
+    id: int
+    user_id: int
+    email: str
+    ip_or_cidr: str
+    requested_at: datetime
