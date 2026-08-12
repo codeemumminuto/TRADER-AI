@@ -1265,28 +1265,27 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 14px;
 }
 
 .login-logo {
-  width: 140px;
-  height: 140px;
-  margin-bottom: 8px;
+  width: 170px;
+  height: 170px;
 }
 
 .login-subtitle {
   color: var(--muted);
   font-size: 13px;
-  margin: 0 0 16px;
+  margin: 0;
 }
 
 .login-card .field {
   width: 100%;
+  margin-bottom: 0;
 }
 
 .login-card .analyze-button {
   width: 100%;
-  margin-top: 8px;
 }
 
 .login-help {
@@ -1294,7 +1293,7 @@
   text-align: center;
   color: var(--muted);
   font-size: 13px;
-  margin: 4px 0 4px;
+  margin: 0;
 }
 
 .login-help a {
