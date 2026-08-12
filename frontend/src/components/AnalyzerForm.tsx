@@ -21,6 +21,8 @@ interface Props {
   minConfidence: number
   onMinConfidenceChange: (value: number) => void
   processingCount: number
+  activeCount: number
+  maxPairs: number
 }
 
 export default function AnalyzerForm({
@@ -30,6 +32,8 @@ export default function AnalyzerForm({
   minConfidence,
   onMinConfidenceChange,
   processingCount,
+  activeCount,
+  maxPairs,
 }: Props) {
   const [riskProfile, setRiskProfile] = useState<RiskProfile>('calmo')
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(['5min'])
@@ -46,6 +50,9 @@ export default function AnalyzerForm({
   const pairs: AnalyzePair[] = selectedAssets.flatMap((asset) =>
     selectedTimeframes.map((timeframe) => ({ asset, timeframe })),
   )
+
+  const remainingSlots = Math.max(0, maxPairs - activeCount)
+  const exceedsLimit = pairs.length > remainingSlots
 
   return (
     <div className="analyzer-form">
@@ -119,17 +126,24 @@ export default function AnalyzerForm({
         </div>
       </div>
 
+      <p className="pairs-limit-hint">
+        Monitorando {activeCount}/{maxPairs} pares — máximo permitido ao mesmo tempo.
+      </p>
+
       <button
         type="button"
         className={`analyze-button${processingCount > 0 ? ' is-loading' : ''}`}
-        disabled={pairs.length === 0}
+        disabled={pairs.length === 0 || exceedsLimit}
         onClick={() => onAnalyze(pairs, riskProfile)}
+        title={exceedsLimit ? `Só cabe mais ${remainingSlots} par(es) — pare algum antes de adicionar outro.` : undefined}
       >
         {processingCount > 0
           ? `Monitorando... (${processingCount} na fila)`
-          : pairs.length > 0
-            ? `Monitorar (${pairs.length})`
-            : 'Selecione ativo(s) e timeframe(s)'}
+          : exceedsLimit
+            ? `Só cabe mais ${remainingSlots} par(es)`
+            : pairs.length > 0
+              ? `Monitorar (${pairs.length})`
+              : 'Selecione ativo(s) e timeframe(s)'}
       </button>
     </div>
   )

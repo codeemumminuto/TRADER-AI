@@ -24,6 +24,11 @@ import './App.css'
 
 const WATCH_KEYS_STORAGE_KEY = 'binai_watched_keys_v1'
 
+// Protege a cota compartilhada da Twelve Data (forex): com muitos usuários, cada um monitorando
+// poucos pares mantém o total de combinações ativas pequeno o bastante pro cache+throttle do
+// backend absorverem sem fila crescente.
+const MAX_WATCHED_PAIRS = 4
+
 // Ordem fixa de exibição dos cards — por timeframe (M1, M5, M15...) e depois por ativo, nunca
 // por confiança: reordenar a cada análise nova é o que deixava a tela "pulando" e confusa.
 const TIMEFRAME_ORDER = ['1min', '5min', '15min', '30min', '1h', '4h']
@@ -259,6 +264,16 @@ function TraderApp({ user, onLogout }: Props) {
     const alreadyActive = withKey.filter((p) => activeRef.current.has(p.key))
     const toRun = withKey.filter((p) => !activeRef.current.has(p.key))
 
+    if (activeRef.current.size + toRun.length > MAX_WATCHED_PAIRS) {
+      const room = Math.max(0, MAX_WATCHED_PAIRS - activeRef.current.size)
+      setFormError(
+        room > 0
+          ? `Só é possível monitorar até ${MAX_WATCHED_PAIRS} pares ao mesmo tempo — cabe mais ${room}. Pare algum antes de adicionar outro.`
+          : `Você já está monitorando o máximo de ${MAX_WATCHED_PAIRS} pares — pare algum antes de adicionar outro.`,
+      )
+      return
+    }
+
     setFormError(
       alreadyActive.length > 0
         ? `Já monitorando: ${alreadyActive.map((p) => `${p.asset} (${p.timeframe})`).join(', ')}.`
@@ -437,6 +452,8 @@ function TraderApp({ user, onLogout }: Props) {
             minConfidence={minConfidence}
             onMinConfidenceChange={setMinConfidence}
             processingCount={watchlist.filter((e) => e.status === 'queued' || e.status === 'running').length}
+            activeCount={watchlist.filter((e) => e.status !== 'stopped').length}
+            maxPairs={MAX_WATCHED_PAIRS}
           />
         </div>
 

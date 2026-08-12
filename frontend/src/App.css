@@ -362,6 +362,12 @@
   gap: 6px;
 }
 
+.pairs-limit-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 12px;
+}
+
 .asset-chip {
   padding: 6px 10px;
   border-radius: 8px;
