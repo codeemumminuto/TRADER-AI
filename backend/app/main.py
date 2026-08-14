@@ -9,13 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session as DBSession
 
-from app import auth, candle_patterns, history, market_data, quant_forecast
+from app import auth, candle_patterns, economic_calendar, history, market_data, quant_forecast
 from app.assets import CONTEXT_TIMEFRAMES, TIMEFRAMES, assets_for_risk, find_asset
 from app.auth import get_client_ip, get_current_user, require_admin
 from app.config import settings
 from app.confluence import blend_timeframes, compute_confluence
 from app.consensus import compute_final
 from app.db import SessionLocal, get_db, init_db
+from app.economic_calendar import EconomicCalendarError
 from app.indicators import compute_indicators
 from app.market_data import UnknownAssetError
 from app.models import Session, User
@@ -29,6 +30,7 @@ from app.schemas import (
     Candle,
     CandlesResponse,
     ChangePasswordRequest,
+    EconomicEvent,
     IndicatorResult,
     LoginRequest,
     RegisterRequest,
@@ -240,6 +242,14 @@ def delete_user(user_id: int, db: DBSession = Depends(get_db), admin: User = Dep
 @app.get("/assets", response_model=list[AssetInfo])
 def get_assets(risk_profile: str | None = None, _user: User = Depends(get_current_user)):
     return assets_for_risk(risk_profile)
+
+
+@app.get("/news", response_model=list[EconomicEvent])
+async def get_news(_user: User = Depends(get_current_user)):
+    try:
+        return await economic_calendar.get_events()
+    except EconomicCalendarError as exc:
+        raise HTTPException(502, str(exc)) from exc
 
 
 @app.get("/timeframes")

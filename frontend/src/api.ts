@@ -12,6 +12,21 @@ export interface AssetInfo {
   risk: string[]
 }
 
+// impact: 0-3 "touros" — 0 = feriado/sem impacto, 3 = alto impacto.
+export interface EconomicEvent {
+  title: string
+  country: string
+  date: string
+  impact: number
+  forecast: string | null
+  previous: string | null
+  actual: string | null
+}
+
+export function fetchNews(): Promise<EconomicEvent[]> {
+  return apiFetch('/news').then((r) => handle(r))
+}
+
 export interface IndicatorResult {
   name: string
   value: number

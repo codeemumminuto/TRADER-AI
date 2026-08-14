@@ -15,6 +15,16 @@ class AssetInfo(BaseModel):
     risk: list[str]
 
 
+class EconomicEvent(BaseModel):
+    title: str
+    country: str
+    date: str
+    impact: int  # 0-3 "touros" — 0 = feriado/sem impacto, 3 = alto impacto
+    forecast: str | None = None
+    previous: str | None = None
+    actual: str | None = None
+
+
 class Candle(BaseModel):
     time: int
     open: float

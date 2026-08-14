@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaHistory, FaKey, FaRedo, FaSignOutAlt, FaTimes } from 'react-icons/fa'
+import { FaCalendarAlt, FaHistory, FaKey, FaRedo, FaSignOutAlt, FaTimes } from 'react-icons/fa'
 import AnalyzerForm, { type AnalyzePair } from './components/AnalyzerForm'
 import ResultCard from './components/ResultCard'
 import HistoryModal from './components/HistoryModal'
 import AnalysisModal from './components/AnalysisModal'
 import ChangePasswordModal from './components/ChangePasswordModal'
+import NewsCalendarModal from './components/NewsCalendarModal'
+import NewsBanner from './components/NewsBanner'
 import Footer from './components/Footer'
 import SoundToggle from './components/SoundToggle'
 import logo from './assets/logo.png'
@@ -81,6 +83,7 @@ function TraderApp({ user, onLogout }: Props) {
   const [minConfidence, setMinConfidence] = useState(70)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [newsOpen, setNewsOpen] = useState(false)
   const [detailEntry, setDetailEntry] = useState<{ asset: string; result: AnalyzeResponse } | null>(null)
   const [nowTick, setNowTick] = useState(() => Date.now())
 
@@ -416,6 +419,13 @@ function TraderApp({ user, onLogout }: Props) {
   }
 
   const sorted = [...watchlist].sort((a, b) => {
+    // Quem tá destacado (bateu a confiança mínima) sobe pro topo — sem isso, um sinal podia
+    // sair escondido lá embaixo e passar despercebido. Dentro de cada grupo (destacado ou
+    // não), a ordem continua fixa por timeframe+ativo, só pra não voltar a "pular" a cada
+    // análise nova.
+    const aHighlighted = isHighlighted(a.result) ? 0 : 1
+    const bHighlighted = isHighlighted(b.result) ? 0 : 1
+    if (aHighlighted !== bHighlighted) return aHighlighted - bHighlighted
     const tfDiff = timeframeRank(a.timeframe) - timeframeRank(b.timeframe)
     if (tfDiff !== 0) return tfDiff
     return a.asset.localeCompare(b.asset)
@@ -423,6 +433,7 @@ function TraderApp({ user, onLogout }: Props) {
 
   return (
     <div className="app-shell">
+      <NewsBanner />
       <header className="app-header">
         <img src={logo} className="app-logo" alt="BinAI" />
         <div className="app-header-text">
@@ -431,6 +442,9 @@ function TraderApp({ user, onLogout }: Props) {
         </div>
         <div className="header-actions">
           <span className="header-user-email">{user.email}</span>
+          <button type="button" className="history-trigger-button" onClick={() => setNewsOpen(true)}>
+            <FaCalendarAlt /> Notícias
+          </button>
           <button type="button" className="history-trigger-button" onClick={() => setHistoryOpen(true)}>
             <FaHistory /> Histórico
           </button>
@@ -524,6 +538,7 @@ function TraderApp({ user, onLogout }: Props) {
 
       {historyOpen && <HistoryModal onClose={() => setHistoryOpen(false)} />}
       {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+      {newsOpen && <NewsCalendarModal onClose={() => setNewsOpen(false)} />}
       {detailEntry && (
         <AnalysisModal asset={detailEntry.asset} result={detailEntry.result} onClose={() => setDetailEntry(null)} />
       )}
