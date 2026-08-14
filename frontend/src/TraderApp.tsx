@@ -12,11 +12,9 @@ import SoundToggle from './components/SoundToggle'
 import logo from './assets/logo.png'
 import {
   analyze,
-  fetchAssets,
   fetchHistory,
   historyRecordToResult,
   type AnalyzeResponse,
-  type AssetInfo,
   type CurrentUser,
   type RiskProfile,
 } from './api'
@@ -26,10 +24,10 @@ import './App.css'
 
 const WATCH_KEYS_STORAGE_KEY = 'binai_watched_keys_v1'
 
-// Protege a cota compartilhada da Twelve Data (forex): com muitos usuários, cada um monitorando
-// poucos pares mantém o total de combinações ativas pequeno o bastante pro cache+throttle do
-// backend absorverem sem fila crescente.
-const MAX_WATCHED_PAIRS = 4
+// Com forex agora vindo da IQ Option (conexão única, sem limite de requisição por minuto como
+// a Twelve Data tinha), o teto por usuário existe só pra manter a UI/lock do provedor razoáveis
+// com muitos usuários simultâneos — não é mais uma cota externa a proteger.
+const MAX_WATCHED_PAIRS = 6
 
 // Ordem fixa de exibição dos cards — por timeframe (M1, M5, M15...) e depois por ativo, nunca
 // por confiança: reordenar a cada análise nova é o que deixava a tela "pulando" e confusa.
@@ -98,12 +96,11 @@ function TraderApp({ user, onLogout }: Props) {
   const timersRef = useRef<Record<string, number>>({})
   const minConfidenceRef = useRef(minConfidence)
   const lastAboveThresholdRef = useRef<Record<string, boolean>>({})
-  const assetProviderRef = useRef<Record<string, AssetInfo['provider']>>({})
 
-  // Frequência de reverificação automática: escalada pelo timeframe, e MUITO mais
-  // conservadora pra forex (Twelve Data grátis compartilha um limite fixo de 8 req/min entre
-  // todos os ativos forex monitorados — repetir rápido nesse provedor só empilha requisições
-  // na fila e trava tudo). Cripto (Binance) não tem esse limite, então pode ser bem mais ágil.
+  // Frequência de reverificação automática: escalada pelo timeframe. Cripto (Binance) e forex
+  // (IQ Option, conexão única persistente) não têm limite de requisição por minuto pra
+  // gerenciar, então todo ativo usa o mesmo intervalo — nunca antes do fim da janela da
+  // previsão atual (predicted_at + timeframe), já que reconferir mais cedo não faz sentido.
   function timeframeMs(timeframe: string): number {
     switch (timeframe) {
       case '1min':
@@ -117,37 +114,9 @@ function TraderApp({ user, onLogout }: Props) {
     }
   }
 
-  function defaultPeriodicityMs(timeframe: string, asset: string): number {
-    // Nunca reanalisa antes do fim da janela da previsão atual (predicted_at + timeframe) —
-    // reconferir mais cedo não faz sentido, a previsão em curso ainda nem "venceu".
-    const base = timeframeMs(timeframe)
-    const provider = assetProviderRef.current[asset] ?? 'binance'
-    if (provider === 'twelvedata') {
-      // Forex: Twelve Data grátis compartilha um limite fixo de 8 req/min entre todos os
-      // ativos monitorados — espaça ainda mais, por cima do mínimo do timeframe.
-      switch (timeframe) {
-        case '1min':
-          return Math.max(base, 90_000)
-        case '5min':
-          return Math.max(base, 180_000)
-        case '15min':
-          return Math.max(base, 300_000)
-        default:
-          return Math.max(base, 180_000)
-      }
-    }
-    return base
+  function defaultPeriodicityMs(timeframe: string): number {
+    return timeframeMs(timeframe)
   }
-
-  useEffect(() => {
-    fetchAssets()
-      .then((list) => {
-        const map: Record<string, AssetInfo['provider']> = {}
-        for (const a of list) map[a.symbol] = a.provider
-        assetProviderRef.current = map
-      })
-      .catch(() => {})
-  }, [])
 
   // Ticker de 1s só pra alimentar labels de "próxima verificação em Xs" e os contadores dos
   // cards — não afeta nenhuma lógica de agendamento real (essa continua nos timers dos refs).
@@ -288,7 +257,7 @@ function TraderApp({ user, onLogout }: Props) {
     setWatchlist((prev) => {
       let next = [...prev]
       for (const { asset, timeframe, key } of toRun) {
-        const periodicityMs = defaultPeriodicityMs(timeframe, asset)
+        const periodicityMs = defaultPeriodicityMs(timeframe)
         const idx = next.findIndex((e) => e.key === key)
         const base: WatchEntry = {
           key,
@@ -307,7 +276,7 @@ function TraderApp({ user, onLogout }: Props) {
     })
 
     for (const { asset, timeframe, key } of toRun) {
-      paramsRef.current[key] = { asset, timeframe, riskProfile, periodicityMs: defaultPeriodicityMs(timeframe, asset) }
+      paramsRef.current[key] = { asset, timeframe, riskProfile, periodicityMs: defaultPeriodicityMs(timeframe) }
       activeRef.current.add(key)
       clearTimer(key)
       enqueue(key)
@@ -354,7 +323,7 @@ function TraderApp({ user, onLogout }: Props) {
         const entries: WatchEntry[] = []
         for (const [key, r] of latestByKey) {
           const result = historyRecordToResult(r)
-          const periodicityMs = defaultPeriodicityMs(r.timeframe, r.asset)
+          const periodicityMs = defaultPeriodicityMs(r.timeframe)
           const lastRunAt = new Date(r.predicted_at).getTime()
           // Se não sabemos (primeira vez com essa persistência) ou o mapa diz que estava
           // ativo, retoma o monitoramento contínuo de verdade — sem isso, qualquer refresh

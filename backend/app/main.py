@@ -21,7 +21,8 @@ from app.indicators import compute_indicators
 from app.market_data import UnknownAssetError
 from app.models import Session, User
 from app.providers.binance import BinanceError
-from app.providers.twelvedata import TwelveDataError
+from app.providers.iqoption import IqOptionError
+from app.providers import iqoption
 from app.schemas import (
     AIAnalysis,
     AnalyzeRequest,
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     await asyncio.to_thread(quant_forecast.preload)
+    await iqoption.preload()
     yield
 
 
@@ -266,7 +268,7 @@ async def get_candles(asset: str, timeframe: str = "1min", limit: int = 150, _us
 
     try:
         df = await market_data.get_candles(asset, timeframe, limit)
-    except (TwelveDataError, BinanceError) as exc:
+    except (IqOptionError, BinanceError) as exc:
         raise HTTPException(400, str(exc)) from exc
 
     candles = [Candle(**row) for row in df.to_dict(orient="records")]
@@ -282,7 +284,7 @@ async def analyze(req: AnalyzeRequest, db: DBSession = Depends(get_db), user: Us
 
     try:
         df = await market_data.get_candles(req.asset, req.timeframe, limit=150)
-    except (TwelveDataError, BinanceError) as exc:
+    except (IqOptionError, BinanceError) as exc:
         raise HTTPException(400, str(exc)) from exc
     except UnknownAssetError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -297,7 +299,7 @@ async def analyze(req: AnalyzeRequest, db: DBSession = Depends(get_db), user: Us
     for ctf in CONTEXT_TIMEFRAMES.get(req.timeframe, []):
         try:
             cdf = await market_data.get_candles(req.asset, ctf, limit=150)
-        except (TwelveDataError, BinanceError, UnknownAssetError):
+        except (IqOptionError, BinanceError, UnknownAssetError):
             continue
         if len(cdf) < 30:
             continue

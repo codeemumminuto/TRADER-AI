@@ -11,7 +11,7 @@ DirectionOrNeutral = Literal["CALL", "PUT", "NEUTRO"]
 class AssetInfo(BaseModel):
     symbol: str
     category: Literal["cripto", "forex", "commodities"]
-    provider: Literal["binance", "twelvedata"]
+    provider: Literal["binance", "iqoption"]
     risk: list[str]
 
 

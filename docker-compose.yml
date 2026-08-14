@@ -26,7 +26,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD:-trader}@db:5432/${POSTGRES_DB:-trader_ai}
-      TWELVE_DATA_API_KEY: ${TWELVE_DATA_API_KEY:-}
+      IQ_EMAIL: ${IQ_EMAIL:-}
+      IQ_PASSWORD: ${IQ_PASSWORD:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3011}
       SESSION_SECRET: ${SESSION_SECRET:-change-me}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}

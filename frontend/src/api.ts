@@ -8,7 +8,7 @@ export type Role = 'admin' | 'user'
 export interface AssetInfo {
   symbol: string
   category: 'cripto' | 'forex' | 'commodities'
-  provider: 'binance' | 'twelvedata'
+  provider: 'binance' | 'iqoption'
   risk: string[]
 }
 

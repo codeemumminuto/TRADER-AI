@@ -10,6 +10,14 @@ sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
 bcrypt==4.2.1
 
+# Forex/commodities via IQ Option (substitui a Twelve Data — sem limite de requisição por
+# minuto, dados idênticos aos da própria corretora, inclui pares OTC). Lib não-oficial
+# vendorizada em iqoptionapi/ (não é pip-installable do jeito que essa cópia corrigida está).
+# websocket-client tem que ser >=1.6 — a 0.56 (a que o setup.py antigo da lib pede) tem uma
+# convenção de callback diferente que quebra on_message() com essa versão da lib.
+requests==2.32.3
+websocket-client==1.9.0
+
 # CPU-only build — o app roda inferência só em CPU (quant_forecast.py força device_map="cpu"),
 # então a wheel padrão do PyPI (que inclui a stack CUDA inteira, +5GB de nvidia-*/triton) é
 # só desperdício de disco/banda. Essa linha faz o pip pegar a build CPU de ~200MB em vez disso.
