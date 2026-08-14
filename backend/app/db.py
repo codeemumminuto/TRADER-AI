@@ -6,7 +6,10 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+# pool_size/max_overflow padrão (5+10=15) já esgotou uma vez sob uma rajada de logins
+# concorrentes, derrubando o site inteiro — 20+30 dá bem mais margem pro mesmo cenário sem
+# aumentar risco (Postgres aceita até 100 conexões por padrão, sobra folga).
+engine = create_engine(settings.database_url, pool_pre_ping=True, pool_size=20, max_overflow=30, pool_timeout=10)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
