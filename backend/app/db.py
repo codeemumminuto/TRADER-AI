@@ -29,14 +29,20 @@ _COLUMN_ADDITIONS = [
     ("users", "next_due_date", "DATE"),
     ("users", "billing_period_days", "INTEGER"),
     ("users", "notes", "VARCHAR(500)"),
-    ("allowed_ips", "pending", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "valor", "DOUBLE PRECISION"),
+    ("users", "license_count", "INTEGER NOT NULL DEFAULT 1"),
+    ("users", "pending_approval", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("users", "signup_ip", "VARCHAR(64)"),
 ]
 
 
 def _apply_column_additions() -> None:
+    # IF EXISTS na tabela também: "allowed_ips" ficou pra trás (era só a allowlist de IP,
+    # substituída pelo licenciamento por sessão) — segue existindo em produções antigas, mas
+    # uma instalação nova nunca cria essa tabela, então a checagem evita erro nesse caso.
     with engine.begin() as conn:
         for table, column, sql_type in _COLUMN_ADDITIONS:
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}"))
+            conn.execute(text(f"ALTER TABLE IF EXISTS {table} ADD COLUMN IF NOT EXISTS {column} {sql_type}"))
 
 
 def init_db() -> None:

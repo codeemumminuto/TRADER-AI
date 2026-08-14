@@ -14,6 +14,12 @@ ASSETS = [
     {"symbol": "USD/JPY", "provider": "twelvedata", "provider_symbol": "USD/JPY", "category": "forex", "risk": ["calmo", "moderado"]},
     {"symbol": "AUD/USD", "provider": "twelvedata", "provider_symbol": "AUD/USD", "category": "forex", "risk": ["calmo"]},
     {"symbol": "USD/CAD", "provider": "twelvedata", "provider_symbol": "USD/CAD", "category": "forex", "risk": ["calmo", "moderado"]},
+    {"symbol": "EUR/GBP", "provider": "twelvedata", "provider_symbol": "EUR/GBP", "category": "forex", "risk": ["calmo", "moderado"]},
+    {"symbol": "EUR/JPY", "provider": "twelvedata", "provider_symbol": "EUR/JPY", "category": "forex", "risk": ["moderado", "volatil"]},
+    {"symbol": "GBP/JPY", "provider": "twelvedata", "provider_symbol": "GBP/JPY", "category": "forex", "risk": ["moderado", "volatil"]},
+
+    # Commodities (Twelve Data)
+    {"symbol": "XAU/USD", "provider": "twelvedata", "provider_symbol": "XAU/USD", "category": "commodities", "risk": ["moderado", "volatil"]},
 ]
 
 TIMEFRAMES = {

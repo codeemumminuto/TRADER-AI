@@ -1,20 +1,14 @@
 import { useEffect, useState } from 'react'
-import { FaKey, FaSignOutAlt, FaTimes, FaTrash } from 'react-icons/fa'
+import { FaKey, FaSignOutAlt, FaTrash } from 'react-icons/fa'
 import logo from '../assets/logo.png'
 import {
-  addAllowedIp,
-  approveAllowedIp,
+  approveUser,
   createUser,
   deleteUser,
-  fetchAllowedIps,
-  fetchPendingIps,
   fetchUsers,
-  removeAllowedIp,
   renewUser,
   updateUser,
-  type AllowedIp,
   type CurrentUser,
-  type PendingIp,
   type Role,
 } from '../api'
 import ChangePasswordModal from './ChangePasswordModal'
@@ -33,19 +27,15 @@ export default function AdminPanel({ onLogout }: Props) {
   const [newRole, setNewRole] = useState<Role>('user')
   const [newBillingDays, setNewBillingDays] = useState('30')
   const [newNotes, setNewNotes] = useState('')
-
-  const [managingUserId, setManagingUserId] = useState<number | null>(null)
-  const [ips, setIps] = useState<AllowedIp[]>([])
-  const [newIp, setNewIp] = useState('')
-
-  const [pendingIps, setPendingIps] = useState<PendingIp[]>([])
+  const [newValor, setNewValor] = useState('')
+  const [newLicenseCount, setNewLicenseCount] = useState('1')
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
-  // savingId: linha com uma alteração de cobrança em andamento (desabilita os controles dela).
-  // justSavedId: pisca um "Salvo!" por 2s depois que a alteração é confirmada pelo servidor —
-  // sem isso, mudar a data ou clicar em "Registrar pagamento" parecia não fazer nada.
+  // savingId: linha com uma alteração em andamento (desabilita os controles dela). justSavedId:
+  // pisca um "Salvo!" por 2s depois que a alteração é confirmada pelo servidor — sem isso, editar
+  // um campo inline parecia não fazer nada.
   const [savingId, setSavingId] = useState<number | null>(null)
   const [justSavedId, setJustSavedId] = useState<number | null>(null)
 
@@ -57,43 +47,12 @@ export default function AdminPanel({ onLogout }: Props) {
     }
   }
 
-  async function loadPendingIps() {
-    try {
-      setPendingIps(await fetchPendingIps())
-    } catch {
-      // silencioso — não deixa o polling periódico martelar o banner de erro
-    }
-  }
-
   useEffect(() => {
     loadUsers()
-    loadPendingIps()
-    // Poll pra pegar solicitações novas sem precisar recarregar a página manualmente.
-    const timer = window.setInterval(loadPendingIps, 10_000)
+    // Poll pra pegar autocadastros novos sem precisar recarregar a página manualmente.
+    const timer = window.setInterval(loadUsers, 10_000)
     return () => window.clearInterval(timer)
   }, [])
-
-  async function handleApprovePending(p: PendingIp) {
-    setError(null)
-    try {
-      await approveAllowedIp(p.user_id, p.id)
-      await loadPendingIps()
-      if (managingUserId === p.user_id) openIpManager(p.user_id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao aprovar IP')
-    }
-  }
-
-  async function handleRejectPending(p: PendingIp) {
-    setError(null)
-    try {
-      await removeAllowedIp(p.user_id, p.id)
-      await loadPendingIps()
-      if (managingUserId === p.user_id) openIpManager(p.user_id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao rejeitar IP')
-    }
-  }
 
   function flashSaved(id: number) {
     setJustSavedId(id)
@@ -105,15 +64,43 @@ export default function AdminPanel({ onLogout }: Props) {
     setError(null)
     try {
       const billingDays = newBillingDays.trim() ? Number(newBillingDays) : null
-      await createUser(newEmail, newPassword, newRole, billingDays, newNotes.trim() || null)
+      const valor = newValor.trim() ? Number(newValor) : null
+      const licenseCount = Math.max(1, Number(newLicenseCount) || 1)
+      await createUser(newEmail, newPassword, newRole, billingDays, newNotes.trim() || null, valor, licenseCount)
       setNewEmail('')
       setNewPassword('')
       setNewRole('user')
       setNewBillingDays('30')
       setNewNotes('')
+      setNewValor('')
+      setNewLicenseCount('1')
       loadUsers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar usuário')
+    }
+  }
+
+  async function handleApproveAccount(user: CurrentUser) {
+    setError(null)
+    setSavingId(user.id)
+    try {
+      await approveUser(user.id)
+      await loadUsers()
+      flashSaved(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao aprovar conta')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleRejectAccount(user: CurrentUser) {
+    setError(null)
+    try {
+      await deleteUser(user.id)
+      await loadUsers()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao rejeitar conta')
     }
   }
 
@@ -151,6 +138,38 @@ export default function AdminPanel({ onLogout }: Props) {
       flashSaved(user.id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar observação')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleValorBlur(user: CurrentUser, value: string) {
+    const parsed = value.trim() ? Number(value) : null
+    if (parsed === (user.valor ?? null)) return
+    setError(null)
+    setSavingId(user.id)
+    try {
+      await updateUser(user.id, { valor: parsed })
+      await loadUsers()
+      flashSaved(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar valor')
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleLicenseBlur(user: CurrentUser, value: string) {
+    const parsed = Math.max(1, Number(value) || 1)
+    if (parsed === user.license_count) return
+    setError(null)
+    setSavingId(user.id)
+    try {
+      await updateUser(user.id, { license_count: parsed })
+      await loadUsers()
+      flashSaved(user.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar licenças')
     } finally {
       setSavingId(null)
     }
@@ -198,38 +217,10 @@ export default function AdminPanel({ onLogout }: Props) {
   async function handleDelete(id: number) {
     setConfirmDeleteId(null)
     await deleteUser(id)
-    if (managingUserId === id) setManagingUserId(null)
     loadUsers()
   }
 
-  function openIpManager(userId: number) {
-    setManagingUserId(userId)
-    fetchAllowedIps(userId).then(setIps).catch(() => setIps([]))
-  }
-
-  async function handleAddIp(e: React.FormEvent) {
-    e.preventDefault()
-    if (managingUserId == null || !newIp.trim()) return
-    const ip = await addAllowedIp(managingUserId, newIp.trim())
-    setIps((prev) => [...prev, ip])
-    setNewIp('')
-  }
-
-  async function handleRemoveIp(ipId: number) {
-    if (managingUserId == null) return
-    await removeAllowedIp(managingUserId, ipId)
-    setIps((prev) => prev.filter((i) => i.id !== ipId))
-    loadPendingIps()
-  }
-
-  async function handleApproveIpInline(ipId: number) {
-    if (managingUserId == null) return
-    const approved = await approveAllowedIp(managingUserId, ipId)
-    setIps((prev) => prev.map((i) => (i.id === ipId ? approved : i)))
-    loadPendingIps()
-  }
-
-  const managingUser = users.find((u) => u.id === managingUserId) ?? null
+  const pendingAccounts = users.filter((u) => u.pending_approval)
 
   return (
     <div className="app-shell">
@@ -237,7 +228,7 @@ export default function AdminPanel({ onLogout }: Props) {
         <img src={logo} className="app-logo" alt="BinAI" />
         <div className="app-header-text">
           <h1>BinAI — Administração</h1>
-          <p>Cadastro de usuários e liberação de IPs</p>
+          <p>Cadastro de usuários e aprovação de contas</p>
         </div>
         <div className="header-actions">
           <button type="button" className="history-trigger-button" onClick={() => setChangePasswordOpen(true)}>
@@ -284,6 +275,30 @@ export default function AdminPanel({ onLogout }: Props) {
               </div>
             </div>
             <div className="field">
+              <label>Valor (R$)</label>
+              <div className="min-confidence-field">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0"
+                  value={newValor}
+                  onChange={(e) => setNewValor(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field">
+              <label>Licenças (sessões simultâneas)</label>
+              <div className="min-confidence-field">
+                <input
+                  type="number"
+                  min={1}
+                  value={newLicenseCount}
+                  onChange={(e) => setNewLicenseCount(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="field">
               <label>Observação</label>
               <input
                 type="text"
@@ -301,22 +316,28 @@ export default function AdminPanel({ onLogout }: Props) {
         <div className="column-center">
           {error && <div className="error-banner">{error}</div>}
 
-          {pendingIps.length > 0 && (
+          {pendingAccounts.length > 0 && (
             <div className="history-panel pending-ips-panel">
               <div className="history-header">
-                <span>IPs pendentes de aprovação ({pendingIps.length})</span>
+                <span>Contas pendentes de aprovação ({pendingAccounts.length})</span>
               </div>
               <ul className="model-info-list">
-                {pendingIps.map((p) => (
-                  <li key={p.id}>
+                {pendingAccounts.map((u) => (
+                  <li key={u.id}>
                     <span className="model-info-name">
-                      {p.email} — <span className="pending-ip-address">{p.ip_or_cidr}</span>
+                      {u.email}
+                      {u.signup_ip && <span className="pending-ip-address"> — cadastrado de {u.signup_ip}</span>}
                     </span>
                     <div className="admin-user-actions">
-                      <button type="button" className="secondary-detail" onClick={() => handleApprovePending(p)}>
+                      <button
+                        type="button"
+                        className="secondary-detail"
+                        disabled={savingId === u.id}
+                        onClick={() => handleApproveAccount(u)}
+                      >
                         Aprovar
                       </button>
-                      <button type="button" className="secondary-remove" onClick={() => handleRejectPending(p)} title="Rejeitar">
+                      <button type="button" className="secondary-remove" onClick={() => handleRejectAccount(u)} title="Rejeitar">
                         <FaTrash />
                       </button>
                     </div>
@@ -338,6 +359,8 @@ export default function AdminPanel({ onLogout }: Props) {
                     <th>Papel</th>
                     <th>Status</th>
                     <th>Cobrança</th>
+                    <th>Valor</th>
+                    <th>Licenças</th>
                     <th>Observação</th>
                     <th></th>
                   </tr>
@@ -351,7 +374,7 @@ export default function AdminPanel({ onLogout }: Props) {
                         <td>{u.role === 'admin' ? 'Admin' : 'Usuário'}</td>
                         <td>
                           <span className={`result-tag ${u.is_active ? 'result-win' : 'result-loss'}`}>
-                            {u.is_active ? 'Ativo' : 'Desativado'}
+                            {u.pending_approval ? 'Pendente' : u.is_active ? 'Ativo' : 'Desativado'}
                           </span>
                         </td>
                         <td>
@@ -367,6 +390,34 @@ export default function AdminPanel({ onLogout }: Props) {
                                 title="Editar vencimento diretamente"
                               />
                             </div>
+                          )}
+                        </td>
+                        <td>
+                          {u.role === 'user' && (
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="notes-input"
+                              defaultValue={u.valor ?? ''}
+                              key={`valor-${u.id}-${u.valor ?? ''}`}
+                              disabled={savingId === u.id}
+                              placeholder="0"
+                              onBlur={(e) => handleValorBlur(u, e.target.value)}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          {u.role === 'user' && (
+                            <input
+                              type="number"
+                              min={1}
+                              className="license-input"
+                              defaultValue={u.license_count}
+                              key={`license-${u.id}-${u.license_count}`}
+                              disabled={savingId === u.id}
+                              onBlur={(e) => handleLicenseBlur(u, e.target.value)}
+                            />
                           )}
                         </td>
                         <td>
@@ -386,19 +437,14 @@ export default function AdminPanel({ onLogout }: Props) {
                         </td>
                         <td className="admin-user-actions">
                           {u.role === 'user' && (
-                            <>
-                              <button type="button" className="secondary-detail" onClick={() => openIpManager(u.id)}>
-                                IPs
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary-detail"
-                                disabled={savingId === u.id}
-                                onClick={() => handleRenew(u)}
-                              >
-                                Registrar pagamento
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              className="secondary-detail"
+                              disabled={savingId === u.id}
+                              onClick={() => handleRenew(u)}
+                            >
+                              Registrar pagamento
+                            </button>
                           )}
                           <button type="button" className="secondary-detail" onClick={() => handleToggleActive(u)}>
                             {u.is_active ? 'Desativar' : 'Ativar'}
@@ -417,56 +463,6 @@ export default function AdminPanel({ onLogout }: Props) {
               </table>
             </div>
           </div>
-
-          {managingUser && (
-            <div className="history-panel">
-              <div className="history-header">
-                <span>IPs liberados — {managingUser.email}</span>
-                <button type="button" className="secondary-remove" onClick={() => setManagingUserId(null)} title="Fechar">
-                  <FaTimes />
-                </button>
-              </div>
-
-              {ips.length === 0 ? (
-                <div className="history-empty">
-                  Nenhum IP liberado ainda — esse usuário não consegue logar até você adicionar pelo menos um.
-                </div>
-              ) : (
-                <ul className="model-info-list">
-                  {ips.map((ip) => (
-                    <li key={ip.id}>
-                      <span className="model-info-name">
-                        {ip.ip_or_cidr}{' '}
-                        {ip.pending && <span className="result-tag result-loss">Pendente</span>}
-                      </span>
-                      <div className="admin-user-actions">
-                        {ip.pending && (
-                          <button type="button" className="secondary-detail" onClick={() => handleApproveIpInline(ip.id)}>
-                            Aprovar
-                          </button>
-                        )}
-                        <button type="button" className="secondary-remove" onClick={() => handleRemoveIp(ip.id)} title="Remover">
-                          <FaTrash />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <form className="ip-add-form" onSubmit={handleAddIp}>
-                <input
-                  type="text"
-                  placeholder="Ex.: 200.150.10.5 ou 200.150.10.0/24"
-                  value={newIp}
-                  onChange={(e) => setNewIp(e.target.value)}
-                />
-                <button type="submit" className="ip-add-button">
-                  Adicionar
-                </button>
-              </form>
-            </div>
-          )}
         </div>
       </main>
 

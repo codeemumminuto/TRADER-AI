@@ -356,6 +356,23 @@
   color: #fff;
 }
 
+.asset-category {
+  margin-bottom: 10px;
+}
+
+.asset-category:last-child {
+  margin-bottom: 0;
+}
+
+.asset-category-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
 .asset-grid {
   display: flex;
   flex-wrap: wrap;
@@ -1267,6 +1284,21 @@
 }
 
 .notes-input:focus {
+  outline: none;
+  border-color: var(--green);
+}
+
+.license-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  color: var(--silver);
+  font-size: 12px;
+  padding: 4px 7px;
+  width: 56px;
+}
+
+.license-input:focus {
   outline: none;
   border-color: var(--green);
 }

@@ -3,11 +3,16 @@ import { fetchAssets, type AssetInfo, type RiskProfile } from '../api'
 
 const TIMEFRAMES = ['1min', '5min', '15min']
 
-const RISK_PROFILES: { key: RiskProfile; label: string }[] = [
-  { key: 'calmo', label: 'Calmo' },
-  { key: 'moderado', label: 'Moderado' },
-  { key: 'volatil', label: 'Volátil' },
-]
+// O perfil de risco não é mais escolhido pelo usuário (removemos as tabs Calmo/Moderado/
+// Volátil pra mostrar todos os ativos de uma vez) — ainda é aceito pela API, então mandamos
+// um valor fixo neutro.
+const DEFAULT_RISK_PROFILE: RiskProfile = 'moderado'
+
+const CATEGORY_LABEL: Record<string, string> = {
+  cripto: 'Cripto',
+  forex: 'Forex',
+  commodities: 'Commodities',
+}
 
 export interface AnalyzePair {
   asset: string
@@ -35,13 +40,12 @@ export default function AnalyzerForm({
   activeCount,
   maxPairs,
 }: Props) {
-  const [riskProfile, setRiskProfile] = useState<RiskProfile>('calmo')
   const [selectedTimeframes, setSelectedTimeframes] = useState<string[]>(['5min'])
   const [assets, setAssets] = useState<AssetInfo[]>([])
 
   useEffect(() => {
-    fetchAssets(riskProfile).then(setAssets)
-  }, [riskProfile])
+    fetchAssets().then(setAssets)
+  }, [])
 
   function toggleTimeframe(tf: string) {
     setSelectedTimeframes((prev) => (prev.includes(tf) ? prev.filter((t) => t !== tf) : [...prev, tf]))
@@ -53,6 +57,11 @@ export default function AnalyzerForm({
 
   const remainingSlots = Math.max(0, maxPairs - activeCount)
   const exceedsLimit = pairs.length > remainingSlots
+
+  const assetsByCategory = assets.reduce<Record<string, AssetInfo[]>>((acc, a) => {
+    ;(acc[a.category] ??= []).push(a)
+    return acc
+  }, {})
 
   return (
     <div className="analyzer-form">
@@ -73,13 +82,6 @@ export default function AnalyzerForm({
       </div>
 
       <div className="field">
-        <label>Tipo de análise</label>
-        <select disabled>
-          <option>Análise Técnica Avançada</option>
-        </select>
-      </div>
-
-      <div className="field">
         <label>Confiança mínima pra destacar uma previsão</label>
         <div className="min-confidence-field">
           <input
@@ -95,35 +97,26 @@ export default function AnalyzerForm({
       </div>
 
       <div className="field">
-        <label>Perfil de mercado</label>
-        <div className="risk-toggle">
-          {RISK_PROFILES.map((rp) => (
-            <button
-              key={rp.key}
-              type="button"
-              className={riskProfile === rp.key ? 'active' : ''}
-              onClick={() => setRiskProfile(rp.key)}
-            >
-              {rp.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="field">
-        <label>Ativos a monitorar ({selectedAssets.length} selecionado{selectedAssets.length === 1 ? '' : 's'})</label>
-        <div className="asset-grid">
-          {assets.map((a) => (
-            <button
-              key={a.symbol}
-              type="button"
-              className={`asset-chip${selectedAssets.includes(a.symbol) ? ' active' : ''}`}
-              onClick={() => onToggleAsset(a.symbol)}
-            >
-              {a.symbol}
-            </button>
-          ))}
-        </div>
+        <label>
+          Ativos a monitorar ({selectedAssets.length} selecionado{selectedAssets.length === 1 ? '' : 's'})
+        </label>
+        {Object.entries(assetsByCategory).map(([category, list]) => (
+          <div key={category} className="asset-category">
+            <span className="asset-category-label">{CATEGORY_LABEL[category] ?? category}</span>
+            <div className="asset-grid">
+              {list.map((a) => (
+                <button
+                  key={a.symbol}
+                  type="button"
+                  className={`asset-chip${selectedAssets.includes(a.symbol) ? ' active' : ''}`}
+                  onClick={() => onToggleAsset(a.symbol)}
+                >
+                  {a.symbol}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <p className="pairs-limit-hint">
@@ -134,7 +127,7 @@ export default function AnalyzerForm({
         type="button"
         className={`analyze-button${processingCount > 0 ? ' is-loading' : ''}`}
         disabled={pairs.length === 0 || exceedsLimit}
-        onClick={() => onAnalyze(pairs, riskProfile)}
+        onClick={() => onAnalyze(pairs, DEFAULT_RISK_PROFILE)}
         title={exceedsLimit ? `Só cabe mais ${remainingSlots} par(es) — pare algum antes de adicionar outro.` : undefined}
       >
         {processingCount > 0

@@ -18,13 +18,11 @@ from app.consensus import compute_final
 from app.db import SessionLocal, get_db, init_db
 from app.indicators import compute_indicators
 from app.market_data import UnknownAssetError
-from app.models import AllowedIP, Session, User
+from app.models import Session, User
 from app.providers.binance import BinanceError
 from app.providers.twelvedata import TwelveDataError
 from app.schemas import (
     AIAnalysis,
-    AllowedIPIn,
-    AllowedIPOut,
     AnalyzeRequest,
     AnalyzeResponse,
     AssetInfo,
@@ -33,7 +31,7 @@ from app.schemas import (
     ChangePasswordRequest,
     IndicatorResult,
     LoginRequest,
-    PendingIpOut,
+    RegisterRequest,
     RenewRequest,
     TimeframeReading,
     UserCreate,
@@ -98,6 +96,33 @@ def me(user: User = Depends(get_current_user)):
     return user
 
 
+@app.get("/auth/email-exists")
+def email_exists(email: str, db: DBSession = Depends(get_db)):
+    """Só pra decidir, no login, se oferece 'criar uma conta nova' — não usado pra nada
+    sensível, e o e-mail já é algo que o próprio usuário está tentando usar pra logar."""
+    exists = db.query(User).filter(User.email == email).first() is not None
+    return {"exists": exists}
+
+
+@app.post("/auth/register")
+def register(req: RegisterRequest, request_ip: str = Depends(get_client_ip), db: DBSession = Depends(get_db)):
+    if db.query(User).filter(User.email == req.email).first():
+        raise HTTPException(409, "Já existe uma conta com esse e-mail.")
+    user = User(
+        email=req.email,
+        password_hash=auth.hash_password(req.password),
+        role="user",
+        is_active=False,
+        pending_approval=True,
+        signup_ip=request_ip,
+        valor=0,
+        license_count=1,
+    )
+    db.add(user)
+    db.commit()
+    return {"registered": True}
+
+
 @app.post("/auth/change-password")
 def change_password(
     req: ChangePasswordRequest,
@@ -130,6 +155,8 @@ def create_user(req: UserCreate, db: DBSession = Depends(get_db), _admin: User =
         billing_period_days=req.billing_period_days,
         next_due_date=date.today() + timedelta(days=req.billing_period_days) if req.billing_period_days else None,
         notes=req.notes,
+        valor=req.valor,
+        license_count=req.license_count,
     )
     db.add(user)
     db.commit()
@@ -154,6 +181,23 @@ def update_user(user_id: int, req: UserUpdate, db: DBSession = Depends(get_db), 
         user.next_due_date = req.next_due_date
     if req.notes is not None:
         user.notes = req.notes
+    if req.valor is not None:
+        user.valor = req.valor
+    if req.license_count is not None:
+        user.license_count = max(1, req.license_count)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@app.post("/admin/users/{user_id}/approve", response_model=UserOut)
+def approve_user(user_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
+    """Aprova uma conta que se autocadastrou (aguardando is_active/pending_approval)."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "Usuário não encontrado.")
+    user.is_active = True
+    user.pending_approval = False
     db.commit()
     db.refresh(user)
     return user
@@ -188,58 +232,6 @@ def delete_user(user_id: int, db: DBSession = Depends(get_db), admin: User = Dep
     db.delete(user)
     db.commit()
     return {"deleted": True}
-
-
-@app.get("/admin/users/{user_id}/ips", response_model=list[AllowedIPOut])
-def list_allowed_ips(user_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    return db.query(AllowedIP).filter(AllowedIP.user_id == user_id).all()
-
-
-@app.post("/admin/users/{user_id}/ips", response_model=AllowedIPOut)
-def add_allowed_ip(user_id: int, req: AllowedIPIn, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    if not db.get(User, user_id):
-        raise HTTPException(404, "Usuário não encontrado.")
-    entry = AllowedIP(user_id=user_id, ip_or_cidr=req.ip_or_cidr)
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
-    return entry
-
-
-@app.delete("/admin/users/{user_id}/ips/{ip_id}")
-def remove_allowed_ip(user_id: int, ip_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    entry = db.get(AllowedIP, ip_id)
-    if not entry or entry.user_id != user_id:
-        raise HTTPException(404, "IP não encontrado pra esse usuário.")
-    db.delete(entry)
-    db.commit()
-    return {"deleted": True}
-
-
-@app.post("/admin/users/{user_id}/ips/{ip_id}/approve", response_model=AllowedIPOut)
-def approve_allowed_ip(user_id: int, ip_id: int, db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    entry = db.get(AllowedIP, ip_id)
-    if not entry or entry.user_id != user_id:
-        raise HTTPException(404, "IP não encontrado pra esse usuário.")
-    entry.pending = False
-    db.commit()
-    db.refresh(entry)
-    return entry
-
-
-@app.get("/admin/pending-ips", response_model=list[PendingIpOut])
-def list_pending_ips(db: DBSession = Depends(get_db), _admin: User = Depends(require_admin)):
-    rows = (
-        db.query(AllowedIP, User.email)
-        .join(User, User.id == AllowedIP.user_id)
-        .filter(AllowedIP.pending.is_(True))
-        .order_by(AllowedIP.created_at)
-        .all()
-    )
-    return [
-        PendingIpOut(id=ip.id, user_id=ip.user_id, email=email, ip_or_cidr=ip.ip_or_cidr, requested_at=ip.created_at)
-        for ip, email in rows
-    ]
 
 
 # --- Mercado / análise --------------------------------------------------------

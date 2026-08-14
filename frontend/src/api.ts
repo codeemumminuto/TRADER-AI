@@ -7,7 +7,7 @@ export type Role = 'admin' | 'user'
 
 export interface AssetInfo {
   symbol: string
-  category: 'cripto' | 'forex'
+  category: 'cripto' | 'forex' | 'commodities'
   provider: 'binance' | 'twelvedata'
   risk: string[]
 }
@@ -188,10 +188,28 @@ export interface CurrentUser {
   next_due_date: string | null
   billing_period_days: number | null
   notes: string | null
+  valor: number | null
+  license_count: number
+  pending_approval: boolean
+  signup_ip: string | null
 }
 
 export function login(email: string, password: string): Promise<CurrentUser> {
   return apiFetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  }).then((r) => handle(r))
+}
+
+export function checkEmailExists(email: string): Promise<boolean> {
+  return apiFetch(`/auth/email-exists?email=${encodeURIComponent(email)}`)
+    .then((r) => handle<{ exists: boolean }>(r))
+    .then((body) => body.exists)
+}
+
+export function register(email: string, password: string): Promise<{ registered: boolean }> {
+  return apiFetch('/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -224,11 +242,21 @@ export function createUser(
   role: Role = 'user',
   billingPeriodDays?: number | null,
   notes?: string | null,
+  valor?: number | null,
+  licenseCount?: number,
 ): Promise<CurrentUser> {
   return apiFetch('/admin/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, role, billing_period_days: billingPeriodDays ?? null, notes: notes ?? null }),
+    body: JSON.stringify({
+      email,
+      password,
+      role,
+      billing_period_days: billingPeriodDays ?? null,
+      notes: notes ?? null,
+      valor: valor ?? null,
+      license_count: licenseCount ?? 1,
+    }),
   }).then((r) => handle(r))
 }
 
@@ -241,6 +269,8 @@ export function updateUser(
     next_due_date?: string | null
     clear_due_date?: boolean
     notes?: string
+    valor?: number | null
+    license_count?: number
   },
 ): Promise<CurrentUser> {
   return apiFetch(`/admin/users/${id}`, {
@@ -262,40 +292,6 @@ export function deleteUser(id: number): Promise<{ deleted: boolean }> {
   return apiFetch(`/admin/users/${id}`, { method: 'DELETE' }).then((r) => handle(r))
 }
 
-export interface AllowedIp {
-  id: number
-  ip_or_cidr: string
-  pending: boolean
-}
-
-export function fetchAllowedIps(userId: number): Promise<AllowedIp[]> {
-  return apiFetch(`/admin/users/${userId}/ips`).then((r) => handle(r))
-}
-
-export function addAllowedIp(userId: number, ipOrCidr: string): Promise<AllowedIp> {
-  return apiFetch(`/admin/users/${userId}/ips`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ip_or_cidr: ipOrCidr }),
-  }).then((r) => handle(r))
-}
-
-export function removeAllowedIp(userId: number, ipId: number): Promise<{ deleted: boolean }> {
-  return apiFetch(`/admin/users/${userId}/ips/${ipId}`, { method: 'DELETE' }).then((r) => handle(r))
-}
-
-export function approveAllowedIp(userId: number, ipId: number): Promise<AllowedIp> {
-  return apiFetch(`/admin/users/${userId}/ips/${ipId}/approve`, { method: 'POST' }).then((r) => handle(r))
-}
-
-export interface PendingIp {
-  id: number
-  user_id: number
-  email: string
-  ip_or_cidr: string
-  requested_at: string
-}
-
-export function fetchPendingIps(): Promise<PendingIp[]> {
-  return apiFetch('/admin/pending-ips').then((r) => handle(r))
+export function approveUser(id: number): Promise<CurrentUser> {
+  return apiFetch(`/admin/users/${id}/approve`, { method: 'POST' }).then((r) => handle(r))
 }

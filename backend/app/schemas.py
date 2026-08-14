@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -10,7 +10,7 @@ DirectionOrNeutral = Literal["CALL", "PUT", "NEUTRO"]
 
 class AssetInfo(BaseModel):
     symbol: str
-    category: Literal["cripto", "forex"]
+    category: Literal["cripto", "forex", "commodities"]
     provider: Literal["binance", "twelvedata"]
     risk: list[str]
 
@@ -115,6 +115,10 @@ class UserOut(BaseModel):
     next_due_date: date | None = None
     billing_period_days: int | None = None
     notes: str | None = None
+    valor: float | None = None
+    license_count: int = 1
+    pending_approval: bool = False
+    signup_ip: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -125,6 +129,8 @@ class UserCreate(BaseModel):
     role: Role = "user"
     billing_period_days: int | None = None
     notes: str | None = None
+    valor: float | None = None
+    license_count: int = 1
 
 
 class UserUpdate(BaseModel):
@@ -134,27 +140,14 @@ class UserUpdate(BaseModel):
     next_due_date: date | None = None
     clear_due_date: bool = False
     notes: str | None = None
+    valor: float | None = None
+    license_count: int | None = None
 
 
 class RenewRequest(BaseModel):
     period_days: int | None = None
 
 
-class AllowedIPOut(BaseModel):
-    id: int
-    ip_or_cidr: str
-    pending: bool
-
-    model_config = {"from_attributes": True}
-
-
-class AllowedIPIn(BaseModel):
-    ip_or_cidr: str
-
-
-class PendingIpOut(BaseModel):
-    id: int
-    user_id: int
+class RegisterRequest(BaseModel):
     email: str
-    ip_or_cidr: str
-    requested_at: datetime
+    password: str

@@ -29,21 +29,16 @@ class User(Base):
 
     notes: Mapped[str | None] = mapped_column(String(500), default=None)
 
-    allowed_ips: Mapped[list["AllowedIP"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    # Licenciamento: quantas sessões simultâneas esse usuário pode ter. Fazer login além da
+    # cota desloca a sessão mais antiga automaticamente (ver auth.enforce_license_cap) — não
+    # existe mais allowlist de IP, a "aprovação" do admin agora é só sobre a conta em si.
+    valor: Mapped[float | None] = mapped_column(default=None)
+    license_count: Mapped[int] = mapped_column(Integer, default=1)
 
-
-class AllowedIP(Base):
-    __tablename__ = "allowed_ips"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
-    ip_or_cidr: Mapped[str] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    # True quando criado automaticamente por uma tentativa de login de um IP não liberado —
-    # não conta pra ip_allowed() até o admin aprovar. Entradas criadas pelo admin nascem False.
-    pending: Mapped[bool] = mapped_column(default=False)
-
-    user: Mapped["User"] = relationship(back_populates="allowed_ips")
+    # Conta criada por autocadastro (não pelo admin) — fica com is_active=False até o admin
+    # aprovar. signup_ip é só informativo, mostrado pro admin na hora de decidir.
+    pending_approval: Mapped[bool] = mapped_column(default=False)
+    signup_ip: Mapped[str | None] = mapped_column(String(64), default=None)
 
 
 class Session(Base):

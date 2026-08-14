@@ -1,7 +1,6 @@
 """Autenticação por sessão (cookie httpOnly + token opaco na tabela `sessions`, não JWT) — dá
 pra revogar sessão na hora e checar o IP a cada request, não só no login."""
 
-import ipaddress
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
@@ -11,7 +10,7 @@ from sqlalchemy.orm import Session as DBSession
 
 from app.config import settings
 from app.db import get_db
-from app.models import AllowedIP, Session as SessionModel, User
+from app.models import Session as SessionModel, User
 
 COOKIE_NAME = "session_id"
 MAX_FAILED_ATTEMPTS = 5
@@ -41,23 +40,6 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def ip_allowed(ip: str, allowlist: list[str]) -> bool:
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return False
-    for entry in allowlist:
-        try:
-            if "/" in entry:
-                if addr in ipaddress.ip_network(entry, strict=False):
-                    return True
-            elif addr == ipaddress.ip_address(entry):
-                return True
-        except ValueError:
-            continue
-    return False
-
-
 def subscription_overdue(user: User) -> bool:
     """Admin nunca é cobrado; next_due_date nulo = sem cobrança configurada, nunca vence sozinho."""
     if user.role == "admin" or user.next_due_date is None:
@@ -67,7 +49,7 @@ def subscription_overdue(user: User) -> bool:
 
 def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
     user = db.query(User).filter(User.email == email).first()
-    if not user or not user.is_active:
+    if not user:
         raise HTTPException(401, "E-mail ou senha inválidos.")
 
     now = datetime.now(timezone.utc)
@@ -84,20 +66,13 @@ def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
 
     user.failed_attempts = 0
     user.locked_until = None
-
-    if user.role != "admin":
-        allowlist = [a.ip_or_cidr for a in user.allowed_ips if not a.pending]
-        if not ip_allowed(ip, allowlist):
-            already_pending = any(a.pending and a.ip_or_cidr == ip for a in user.allowed_ips)
-            if not already_pending:
-                db.add(AllowedIP(user_id=user.id, ip_or_cidr=ip, pending=True))
-            db.commit()
-            raise HTTPException(
-                403,
-                "Seu acesso está pendente de aprovação do administrador. Tente novamente em alguns minutos.",
-            )
-
     db.commit()
+
+    if user.pending_approval:
+        raise HTTPException(403, "Sua conta ainda está pendente de aprovação do administrador.")
+
+    if not user.is_active:
+        raise HTTPException(401, "E-mail ou senha inválidos.")
 
     if subscription_overdue(user):
         raise HTTPException(402, "Assinatura vencida — contate o administrador pra renovar o acesso.")
@@ -105,11 +80,31 @@ def authenticate(email: str, password: str, ip: str, db: DBSession) -> User:
     return user
 
 
+def enforce_license_cap(user: User, db: DBSession) -> None:
+    """Só N sessões simultâneas por vez (N = license_count) — logar de um PC/IP novo desloca
+    automaticamente a(s) sessão(ões) mais antiga(s), sem precisar de aprovação manual de IP.
+    Admin não tem limite (gestão da plataforma, não é o "produto" licenciado)."""
+    if user.role == "admin":
+        return
+    now = datetime.now(timezone.utc)
+    sessions = (
+        db.query(SessionModel)
+        .filter(SessionModel.user_id == user.id, SessionModel.expires_at > now)
+        .order_by(SessionModel.created_at.desc())
+        .all()
+    )
+    keep = max(1, user.license_count)
+    for stale in sessions[keep:]:
+        db.delete(stale)
+    db.commit()
+
+
 def create_session(user: User, ip: str, db: DBSession) -> str:
     token = secrets.token_urlsafe(32)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.session_ttl_hours)
     db.add(SessionModel(id=token, user_id=user.id, ip_address=ip, expires_at=expires_at))
     db.commit()
+    enforce_license_cap(user, db)
     return token
 
 
@@ -180,11 +175,11 @@ __all__ = [
     "authenticate",
     "create_session",
     "destroy_session",
+    "enforce_license_cap",
     "ensure_bootstrap_admin",
     "get_client_ip",
     "get_current_user",
     "hash_password",
-    "ip_allowed",
     "require_admin",
     "subscription_overdue",
     "verify_password",
