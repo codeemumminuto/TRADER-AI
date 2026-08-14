@@ -471,10 +471,11 @@
 }
 
 .result-badge {
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 13px;
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.03em;
 }
 
 .result-header-actions {
@@ -502,13 +503,17 @@
 }
 
 .badge-call {
-  background: rgba(111, 220, 30, 0.18);
+  background: rgba(111, 220, 30, 0.22);
   color: var(--green-light);
+  border: 1px solid rgba(111, 220, 30, 0.6);
+  box-shadow: 0 0 14px rgba(111, 220, 30, 0.35);
 }
 
 .badge-put {
-  background: rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.22);
   color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
 }
 
 .badge-pending {
@@ -1368,15 +1373,44 @@
   color: #cbd5e1;
 }
 
-/* Sinal forte (confiança >= 85%) */
-.result-card.hot-signal {
+/* Card com sinal validado (badge CALL/PUT visível, não "Analisando...") pulsa na cor da
+   direção — o "sinal forte" (>=85%) usa a mesma animação, só com o brilho mais intenso. */
+.result-card.result-highlighted.direction-call {
   border-color: var(--green);
-  animation: hot-card-glow 1.6s ease-in-out infinite;
+  animation: signal-glow-call 1.8s ease-in-out infinite;
 }
 
-@keyframes hot-card-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 220, 30, 0.25); }
-  50% { box-shadow: 0 0 24px 4px rgba(111, 220, 30, 0.45); }
+.result-card.result-highlighted.direction-put {
+  border-color: #ef4444;
+  animation: signal-glow-put 1.8s ease-in-out infinite;
+}
+
+.result-card.hot-signal.direction-call {
+  animation: signal-glow-call-strong 1.4s ease-in-out infinite;
+}
+
+.result-card.hot-signal.direction-put {
+  animation: signal-glow-put-strong 1.4s ease-in-out infinite;
+}
+
+@keyframes signal-glow-call {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 220, 30, 0.2); }
+  50% { box-shadow: 0 0 22px 3px rgba(111, 220, 30, 0.4); }
+}
+
+@keyframes signal-glow-put {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.2); }
+  50% { box-shadow: 0 0 22px 3px rgba(239, 68, 68, 0.4); }
+}
+
+@keyframes signal-glow-call-strong {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(111, 220, 30, 0.3); }
+  50% { box-shadow: 0 0 32px 6px rgba(111, 220, 30, 0.6); }
+}
+
+@keyframes signal-glow-put-strong {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 32px 6px rgba(239, 68, 68, 0.6); }
 }
 
 .hot-signal-banner {

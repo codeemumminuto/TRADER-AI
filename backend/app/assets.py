@@ -7,6 +7,7 @@ ASSETS = [
     {"symbol": "BNB/USDT", "provider": "binance", "provider_symbol": "BNBUSDT", "category": "cripto", "risk": ["volatil"]},
     {"symbol": "SOL/USDT", "provider": "binance", "provider_symbol": "SOLUSDT", "category": "cripto", "risk": ["volatil"]},
     {"symbol": "XRP/USDT", "provider": "binance", "provider_symbol": "XRPUSDT", "category": "cripto", "risk": ["moderado", "volatil"]},
+    {"symbol": "ADA/USDT", "provider": "binance", "provider_symbol": "ADAUSDT", "category": "cripto", "risk": ["moderado", "volatil"]},
 
     # Forex (Twelve Data, requer TWELVE_DATA_API_KEY gratuita)
     {"symbol": "EUR/USD", "provider": "twelvedata", "provider_symbol": "EUR/USD", "category": "forex", "risk": ["calmo", "moderado"]},
