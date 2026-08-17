@@ -25,7 +25,7 @@ export default function AdminPanel({ onLogout }: Props) {
   const [newEmail, setNewEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState<Role>('user')
-  const [newBillingDays, setNewBillingDays] = useState('30')
+  const [newBillingDays, setNewBillingDays] = useState('365')
   const [newNotes, setNewNotes] = useState('')
   const [newValor, setNewValor] = useState('')
   const [newLicenseCount, setNewLicenseCount] = useState('1')
@@ -70,7 +70,7 @@ export default function AdminPanel({ onLogout }: Props) {
       setNewEmail('')
       setNewPassword('')
       setNewRole('user')
-      setNewBillingDays('30')
+      setNewBillingDays('365')
       setNewNotes('')
       setNewValor('')
       setNewLicenseCount('1')
@@ -107,7 +107,7 @@ export default function AdminPanel({ onLogout }: Props) {
   async function handleRenew(user: CurrentUser) {
     let period = user.billing_period_days
     if (!period) {
-      const input = window.prompt(`Periodicidade em dias pra ${user.email} (ex.: 30):`)
+      const input = window.prompt(`Periodicidade em dias pra ${user.email} (ex.: 365):`)
       if (!input) return
       period = Number(input)
       if (!period || period <= 0) {

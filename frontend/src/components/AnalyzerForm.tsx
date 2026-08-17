@@ -11,7 +11,7 @@ const DEFAULT_RISK_PROFILE: RiskProfile = 'moderado'
 const CATEGORY_LABEL: Record<string, string> = {
   cripto: 'Cripto',
   forex: 'Forex — mercado aberto',
-  'forex-otc': 'Forex — OTC',
+  'forex-otc': 'Opções Binárias — OTC',
   commodities: 'Commodities — mercado aberto',
   'commodities-otc': 'Commodities — OTC',
 }
