@@ -10,8 +10,16 @@ const DEFAULT_RISK_PROFILE: RiskProfile = 'moderado'
 
 const CATEGORY_LABEL: Record<string, string> = {
   cripto: 'Cripto',
-  forex: 'Forex',
-  commodities: 'Commodities',
+  forex: 'Forex — mercado aberto',
+  'forex-otc': 'Forex — OTC',
+  commodities: 'Commodities — mercado aberto',
+  'commodities-otc': 'Commodities — OTC',
+}
+
+// OTC é um atributo do símbolo, não uma categoria própria no backend — separa visualmente aqui
+// pra não misturar pares de mercado aberto com OTC dentro do mesmo grupo "Forex".
+function groupKey(asset: AssetInfo): string {
+  return asset.symbol.includes('(OTC)') ? `${asset.category}-otc` : asset.category
 }
 
 export interface AnalyzePair {
@@ -59,7 +67,7 @@ export default function AnalyzerForm({
   const exceedsLimit = pairs.length > remainingSlots
 
   const assetsByCategory = assets.reduce<Record<string, AssetInfo[]>>((acc, a) => {
-    ;(acc[a.category] ??= []).push(a)
+    ;(acc[groupKey(a)] ??= []).push(a)
     return acc
   }, {})
 
@@ -111,7 +119,7 @@ export default function AnalyzerForm({
                   className={`asset-chip${selectedAssets.includes(a.symbol) ? ' active' : ''}`}
                   onClick={() => onToggleAsset(a.symbol)}
                 >
-                  {a.symbol}
+                  {a.symbol.replace(' (OTC)', '')}
                 </button>
               ))}
             </div>
