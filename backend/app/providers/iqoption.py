@@ -17,6 +17,7 @@ from app.assets import TIMEFRAMES
 from app.config import settings
 
 _CONNECT_TIMEOUT_SECONDS = 20
+_FETCH_TIMEOUT_SECONDS = 20
 _FETCH_MARGIN = 5  # candles extras pedidos pra sobrar o bastante após descartar a vela em formação
 
 _client = None
@@ -66,19 +67,32 @@ def _normalize_candles(raw: list, timeframe_seconds: int) -> pd.DataFrame:
 
 
 async def get_candles(provider_symbol: str, timeframe: str, limit: int = 150) -> pd.DataFrame:
+    global _client
     seconds = TIMEFRAMES[timeframe]["seconds"]
 
     async with _lock:
         try:
             await asyncio.wait_for(asyncio.to_thread(_ensure_connected_sync), timeout=_CONNECT_TIMEOUT_SECONDS)
         except asyncio.TimeoutError as exc:
+            _client = None  # conexão travada — descarta pra forçar uma nova na próxima tentativa
             raise IqOptionError("Tempo esgotado conectando na IQ Option.") from exc
 
         try:
-            raw = await asyncio.to_thread(
-                _client.get_candles, provider_symbol, seconds, limit + _FETCH_MARGIN, time.time()
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _client.get_candles, provider_symbol, seconds, limit + _FETCH_MARGIN, time.time()
+                ),
+                timeout=_FETCH_TIMEOUT_SECONDS,
             )
+        except asyncio.TimeoutError as exc:
+            # A lib não tem como cancelar a chamada bloqueante em andamento (a thread trava
+            # sozinha), mas sem isso o _lock ficava preso pra sempre e todo pedido de forex
+            # subsequente enfileirava atrás dele, segurando a sessão do banco de cada um até
+            # estourar o pool de conexões inteiro (foi o que derrubou o login em produção).
+            _client = None
+            raise IqOptionError(f"Tempo esgotado consultando IQ Option para {provider_symbol}.") from exc
         except Exception as exc:
+            _client = None  # conexão pode ter ficado em estado inconsistente — força reconexão
             raise IqOptionError(f"Erro ao consultar IQ Option para {provider_symbol}: {exc}") from exc
 
     df = _normalize_candles(raw, seconds)
