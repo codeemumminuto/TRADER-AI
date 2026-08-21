@@ -5,11 +5,12 @@ taxa pra gerenciar, e os candles são exatamente os da própria corretora (inclu
 Regra de ouro da lib (não-oficial, ver backend/iqoptionapi/): nunca instanciar mais de um
 IQ_Option nem chamar métodos a partir de mais de uma thread ao mesmo tempo — o client já roda
 sua própria thread de websocket internamente. Por isso todo acesso ao client passa por _lock,
-e as chamadas bloqueantes da lib rodam em thread via asyncio.to_thread.
+e as chamadas bloqueantes da lib rodam em thread via um executor dedicado (_executor).
 """
 
 import asyncio
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -22,6 +23,12 @@ _FETCH_MARGIN = 5  # candles extras pedidos pra sobrar o bastante após descarta
 
 _client = None
 _lock = asyncio.Lock()
+# Pool dedicado e pequeno só pra essas chamadas: quando uma trava (a lib não tem como
+# cancelá-la, ver comentário abaixo), a thread presa fica isolada aqui em vez de consumir
+# uma vaga do executor padrão do asyncio — o mesmo usado por toda chamada síncrona do
+# FastAPI (auth, sessão do banco, etc.). Foi a falta desse isolamento que derrubou o login
+# em produção: cada timeout vazava uma thread do pool padrão até ele esgotar de vez.
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="iqoption")
 
 
 class IqOptionError(RuntimeError):
@@ -69,26 +76,28 @@ def _normalize_candles(raw: list, timeframe_seconds: int) -> pd.DataFrame:
 async def get_candles(provider_symbol: str, timeframe: str, limit: int = 150) -> pd.DataFrame:
     global _client
     seconds = TIMEFRAMES[timeframe]["seconds"]
+    loop = asyncio.get_running_loop()
 
     async with _lock:
         try:
-            await asyncio.wait_for(asyncio.to_thread(_ensure_connected_sync), timeout=_CONNECT_TIMEOUT_SECONDS)
+            await asyncio.wait_for(
+                loop.run_in_executor(_executor, _ensure_connected_sync), timeout=_CONNECT_TIMEOUT_SECONDS
+            )
         except asyncio.TimeoutError as exc:
             _client = None  # conexão travada — descarta pra forçar uma nova na próxima tentativa
             raise IqOptionError("Tempo esgotado conectando na IQ Option.") from exc
 
         try:
             raw = await asyncio.wait_for(
-                asyncio.to_thread(
-                    _client.get_candles, provider_symbol, seconds, limit + _FETCH_MARGIN, time.time()
+                loop.run_in_executor(
+                    _executor, _client.get_candles, provider_symbol, seconds, limit + _FETCH_MARGIN, time.time()
                 ),
                 timeout=_FETCH_TIMEOUT_SECONDS,
             )
         except asyncio.TimeoutError as exc:
             # A lib não tem como cancelar a chamada bloqueante em andamento (a thread trava
-            # sozinha), mas sem isso o _lock ficava preso pra sempre e todo pedido de forex
-            # subsequente enfileirava atrás dele, segurando a sessão do banco de cada um até
-            # estourar o pool de conexões inteiro (foi o que derrubou o login em produção).
+            # sozinha), mas ela fica isolada em _executor — não consome vaga do pool padrão
+            # usado pelo resto do app (auth, banco), então não derruba mais o login.
             _client = None
             raise IqOptionError(f"Tempo esgotado consultando IQ Option para {provider_symbol}.") from exc
         except Exception as exc:
@@ -113,7 +122,10 @@ async def preload() -> None:
     if not settings.iq_email or not settings.iq_password:
         return
     try:
+        loop = asyncio.get_running_loop()
         async with _lock:
-            await asyncio.wait_for(asyncio.to_thread(_ensure_connected_sync), timeout=_CONNECT_TIMEOUT_SECONDS)
+            await asyncio.wait_for(
+                loop.run_in_executor(_executor, _ensure_connected_sync), timeout=_CONNECT_TIMEOUT_SECONDS
+            )
     except Exception:
         pass  # não trava a subida do app — a próxima chamada real tenta reconectar
